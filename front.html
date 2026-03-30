@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PAWCHAIN — 반려동물 NFT 시스템</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --accent:#ff6b35; --accent2:#7c3aed; --accent3:#10b981; --gold:#f59e0b;
+}
+[data-theme="dark"] {
+  --bg:#0a0a0f; --surface:#111118; --card:#16161f; --border:#2a2a3a;
+  --text:#e8e8f0; --muted:#6b6b85; --nav-bg:rgba(10,10,15,0.88); --input-bg:#16161f; --shadow:rgba(0,0,0,0.5);
+}
+[data-theme="light"] {
+  --bg:#f5f4f0; --surface:#eeecea; --card:#ffffff; --border:#d8d5cf;
+  --text:#1a1a26; --muted:#8a8a9a; --nav-bg:rgba(245,244,240,0.92); --input-bg:#ffffff; --shadow:rgba(0,0,0,0.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh;overflow-x:hidden;transition:background .35s,color .35s;}
+[data-theme="dark"] body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.6;}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:64px;background:var(--nav-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);transition:background .35s;}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;color:var(--accent);cursor:pointer;}
+.logo span{color:var(--text);}
+.nav-links{display:flex;gap:20px;align-items:center;}
+.nav-links a{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);text-decoration:none;transition:color .2s;cursor:pointer;}
+.nav-links a:hover,.nav-links a.active{color:var(--text);}
+.nav-right{display:flex;gap:12px;align-items:center;}
+
+/* theme toggle */
+.theme-wrap{display:flex;align-items:center;gap:6px;}
+.theme-lbl{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.theme-toggle{width:44px;height:24px;border-radius:12px;background:var(--border);border:none;cursor:pointer;position:relative;transition:background .3s;flex-shrink:0;}
+.theme-toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--accent);transition:transform .3s;}
+[data-theme="light"] .theme-toggle::after{transform:translateX(20px);}
+
+.btn-connect{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:10px 22px;cursor:pointer;transition:all .2s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);}
+.btn-connect:hover{background:#ff8555;}
+.btn-connect.connected{background:var(--accent3);}
+
+/* PAGES */
+.page{display:none;position:relative;z-index:1;}
+.page.active{display:block;}
+
+/* HERO */
+.hero{min-height:calc(100vh - 64px);display:grid;grid-template-columns:1fr 1fr;position:relative;overflow:hidden;}
+.hero-left{display:flex;flex-direction:column;justify-content:center;padding:80px 60px 80px 80px;}
+.hero-tag{display:inline-flex;align-items:center;gap:8px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:32px;}
+.hero-tag::before{content:'';width:24px;height:1px;background:var(--accent);}
+.hero-h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(72px,8vw,120px);line-height:.92;letter-spacing:2px;margin-bottom:32px;}
+.hero-h1 em{color:var(--accent);font-style:normal;}
+.hero-sub{font-size:15px;line-height:1.8;color:var(--muted);max-width:440px;margin-bottom:48px;}
+.hero-ctas{display:flex;gap:16px;align-items:center;}
+.btn-primary{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:16px 36px;cursor:pointer;transition:all .2s;clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);}
+.btn-primary:hover{background:#ff8555;transform:translateY(-2px);box-shadow:0 12px 40px rgba(255,107,53,.3);}
+.btn-outline{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;background:transparent;color:var(--text);border:1px solid var(--border);padding:16px 36px;cursor:pointer;transition:all .2s;}
+.btn-outline:hover{border-color:var(--text);}
+.hero-right{position:relative;background:var(--surface);display:flex;align-items:center;justify-content:center;border-left:1px solid var(--border);overflow:hidden;}
+.hero-right::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 60% 40%,rgba(124,58,237,.15) 0%,transparent 70%),radial-gradient(ellipse at 30% 70%,rgba(255,107,53,.1) 0%,transparent 60%);}
+.floating-card{position:relative;z-index:2;background:var(--card);border:1px solid var(--border);width:300px;padding:24px;animation:float 4s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.card-badge{display:inline-block;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;background:rgba(255,107,53,.15);color:var(--accent);padding:4px 10px;margin-bottom:16px;text-transform:uppercase;}
+.card-pet-img{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#1e1e2e,#2a1a3e);display:flex;align-items:center;justify-content:center;font-size:80px;margin-bottom:16px;position:relative;overflow:hidden;}
+.card-pet-img::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(255,107,53,.15),transparent);}
+.card-name{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;}
+.card-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:12px;border-top:1px solid var(--border);}
+.card-meta-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.card-meta-val{font-family:'Space Mono',monospace;font-size:12px;color:var(--accent3);}
+.sbt-tag{position:absolute;top:16px;right:16px;background:var(--accent2);color:#fff;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:4px 8px;text-transform:uppercase;}
+
+/* STATS */
+.stats-bar{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);position:relative;z-index:1;}
+.stat-item{padding:28px 40px;border-right:1px solid var(--border);}
+.stat-item:last-child{border-right:none;}
+.stat-num{font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--accent);letter-spacing:2px;}
+.stat-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:4px;}
+
+/* SECTION */
+.section{padding:100px 80px;position:relative;z-index:1;}
+.section-tag{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:12px;}
+.section-tag::after{content:'';flex:1;height:1px;background:var(--border);max-width:60px;}
+.section-h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,5vw,72px);letter-spacing:2px;margin-bottom:16px;}
+.section-sub{color:var(--muted);font-size:15px;line-height:1.8;max-width:520px;margin-bottom:60px;}
+.flow-steps{display:flex;gap:0;overflow-x:auto;padding-bottom:16px;}
+.flow-step{flex:0 0 auto;width:190px;background:var(--card);border:1px solid var(--border);padding:28px 22px;position:relative;}
+.flow-step:not(:last-child)::after{content:'→';position:absolute;right:-14px;top:50%;transform:translateY(-50%);color:var(--accent);font-size:18px;z-index:2;}
+.flow-num{font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--border);line-height:1;margin-bottom:12px;}
+.flow-icon{font-size:24px;margin-bottom:10px;}
+.flow-name{font-size:14px;font-weight:500;margin-bottom:4px;}
+.flow-desc{font-size:12px;color:var(--muted);}
+.bm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;}
+.bm-card{background:var(--card);border:1px solid var(--border);padding:32px 28px;position:relative;overflow:hidden;transition:border-color .2s;}
+.bm-card:hover{border-color:var(--accent);}
+.bm-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.bm-card:nth-child(1)::before{background:var(--accent);}
+.bm-card:nth-child(2)::before{background:var(--accent2);}
+.bm-card:nth-child(3)::before{background:var(--accent3);}
+.bm-num{font-family:'Bebas Neue',sans-serif;font-size:64px;opacity:.08;position:absolute;top:16px;right:20px;line-height:1;}
+.bm-icon{font-size:32px;margin-bottom:20px;}
+.bm-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:1px;margin-bottom:8px;}
+.bm-desc{font-size:14px;color:var(--muted);line-height:1.7;}
+
+/* REGISTER */
+.register-layout{display:grid;grid-template-columns:1fr 1fr;gap:60px;padding:80px;position:relative;z-index:1;}
+.form-title{font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:2px;margin-bottom:8px;}
+.form-sub{color:var(--muted);font-size:14px;margin-bottom:40px;line-height:1.7;}
+.form-group{margin-bottom:24px;}
+.form-label{display:block;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.form-input,.form-select{width:100%;background:var(--input-bg);border:1px solid var(--border);color:var(--text);padding:14px 18px;font-family:'Noto Sans KR',sans-serif;font-size:14px;outline:none;transition:border-color .2s;appearance:none;}
+.form-input:focus,.form-select:focus{border-color:var(--accent);}
+.form-input::placeholder{color:var(--muted);}
+.upload-area{border:1px dashed var(--border);background:var(--card);padding:40px;text-align:center;cursor:pointer;transition:all .2s;}
+.upload-area:hover{border-color:var(--accent);background:rgba(255,107,53,.05);}
+.upload-icon{font-size:36px;margin-bottom:12px;}
+.upload-text{font-size:14px;color:var(--muted);}
+.upload-text strong{color:var(--accent);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.btn-full{width:100%;padding:18px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:3px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;cursor:pointer;transition:all .2s;margin-top:8px;clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);}
+.btn-full:hover{background:#ff8555;box-shadow:0 16px 48px rgba(255,107,53,.3);}
+.preview-section{position:sticky;top:80px;}
+.preview-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:24px;}
+.preview-card{background:var(--card);border:1px solid var(--border);padding:32px;position:relative;}
+.preview-card::before{content:'SBT';position:absolute;top:16px;right:16px;background:var(--accent2);color:#fff;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:4px 8px;}
+.preview-img{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#1e1e2e,#2a1a3e);display:flex;align-items:center;justify-content:center;font-size:100px;margin-bottom:24px;position:relative;overflow:hidden;}
+.preview-name{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;margin-bottom:4px;}
+.preview-breed{font-size:13px;color:var(--muted);margin-bottom:20px;}
+.preview-rows{display:flex;flex-direction:column;gap:12px;}
+.preview-row{display:flex;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--border);font-size:13px;}
+.preview-row:last-child{border-bottom:none;padding-bottom:0;}
+.preview-row-key{color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;}
+.chain-badge{margin-top:20px;padding:12px 16px;background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);display:flex;align-items:center;gap:10px;}
+.chain-dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);animation:pulse 1.5s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.chain-text{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent2);letter-spacing:1px;}
+
+/* MYPAGE */
+.mypage-layout{padding:60px 80px;position:relative;z-index:1;}
+.mypage-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border);}
+.wallet-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+.wallet-addr{font-family:'Space Mono',monospace;font-size:14px;color:var(--accent3);}
+.mypage-grid{display:grid;grid-template-columns:320px 1fr;gap:40px;}
+.pet-card-main{background:var(--card);border:1px solid var(--border);padding:28px;position:sticky;top:80px;height:fit-content;}
+.pet-card-main-img{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;font-size:80px;position:relative;margin-bottom:24px;overflow:hidden;}
+.pet-card-main-img::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(16,185,129,.1),transparent);}
+.verified-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,.15);color:var(--accent3);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:5px 10px;margin-bottom:12px;text-transform:uppercase;}
+.pet-main-name{font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:2px;}
+.pet-main-breed{font-size:13px;color:var(--muted);margin-bottom:20px;}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;}
+.info-cell{background:var(--surface);padding:12px 14px;}
+.info-cell-key{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.info-cell-val{font-size:13px;}
+.sbt-block{padding:14px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.25);display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+.sbt-icon{font-size:20px;}
+.sbt-info-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--accent2);letter-spacing:1px;text-transform:uppercase;}
+.sbt-info-val{font-size:12px;color:var(--muted);margin-top:2px;}
+.holder-section{margin-top:16px;padding:20px;background:var(--surface);border:1px solid var(--border);}
+.holder-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.holder-title::before{content:'★';}
+.holder-features{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.holder-feat{background:var(--card);border:1px solid var(--border);padding:14px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.holder-feat:hover{border-color:var(--gold);}
+.holder-feat-icon{font-size:20px;margin-bottom:6px;}
+.holder-feat-name{font-size:13px;font-weight:500;margin-bottom:2px;}
+.holder-feat-desc{font-size:11px;color:var(--muted);}
+.lock-overlay{display:none;position:absolute;inset:0;background:rgba(10,10,15,.88);align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;flex-direction:column;gap:4px;}
+.locked .lock-overlay{display:flex;}
+.nft-section-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;}
+.nft-section-title{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;}
+.btn-mint{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:12px 24px;cursor:pointer;transition:all .2s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);}
+.btn-mint:hover{background:#ff8555;}
+.nft-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.nft-item{background:var(--card);border:1px solid var(--border);overflow:hidden;transition:all .25s;cursor:pointer;position:relative;}
+.nft-item:hover{border-color:var(--accent);transform:translateY(-4px);box-shadow:0 20px 40px var(--shadow);}
+.nft-item-img{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:56px;position:relative;overflow:hidden;}
+.nft-type-badge{position:absolute;top:8px;left:8px;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;padding:4px 8px;text-transform:uppercase;}
+.badge-birthday{background:rgba(245,158,11,.2);color:var(--gold);}
+.badge-adoption{background:rgba(16,185,129,.2);color:var(--accent3);}
+.badge-limited{background:rgba(255,107,53,.2);color:var(--accent);}
+.nft-item-body{padding:16px;}
+.nft-item-name{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;margin-bottom:4px;}
+.nft-item-meta{display:flex;justify-content:space-between;align-items:center;}
+.nft-item-edition{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;}
+.nft-item-num{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);}
+
+/* HOLDER */
+.gate-banner{background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(255,107,53,.1));border-bottom:1px solid var(--border);padding:28px 80px;display:flex;align-items:center;justify-content:space-between;gap:24px;}
+.gate-left{display:flex;align-items:center;gap:20px;}
+.gate-nft-thumb{width:56px;height:56px;background:linear-gradient(135deg,#1a1226,#2d1f3d);display:flex;align-items:center;justify-content:center;font-size:28px;border:1px solid var(--accent2);flex-shrink:0;}
+.gate-info-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.gate-info-val{font-size:15px;font-weight:500;margin-top:3px;}
+.gate-right{display:flex;gap:12px;align-items:center;}
+.gate-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:var(--accent3);padding:8px 16px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;}
+.gate-count{font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--accent);letter-spacing:2px;}
+.gate-count-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+.holder-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);padding:0 80px;}
+.holder-tab{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:18px 22px;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;}
+.holder-tab:hover{color:var(--text);}
+.holder-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.holder-tab-content{display:none;padding:60px 80px;}
+.holder-tab-content.active{display:block;}
+.verify-layout{display:grid;grid-template-columns:1fr 1fr;gap:48px;}
+.verify-card{background:var(--card);border:1px solid var(--border);padding:28px;}
+.verify-card-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:1px;margin-bottom:18px;}
+.nft-verify-list{display:flex;flex-direction:column;gap:10px;}
+.nft-verify-item{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);padding:12px 16px;}
+.nft-verify-thumb{width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;}
+.nft-verify-info{flex:1;}
+.nft-verify-name{font-size:13px;font-weight:500;}
+.nft-verify-id{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:2px;}
+.nft-verify-status{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;flex-shrink:0;}
+.status-verified{background:rgba(16,185,129,.15);color:var(--accent3);}
+.access-matrix{display:flex;flex-direction:column;gap:10px;}
+.access-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);padding:12px 16px;}
+.access-row-left{display:flex;align-items:center;gap:12px;}
+.access-row-icon{font-size:20px;}
+.access-row-name{font-size:13px;font-weight:500;}
+.access-row-req{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;}
+.access-pill{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:5px 12px;}
+.pill-open{background:rgba(16,185,129,.12);color:var(--accent3);border:1px solid rgba(16,185,129,.25);}
+.pill-locked{background:rgba(107,107,133,.12);color:var(--muted);border:1px solid var(--border);}
+.pmr{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--border);font-size:13px;}
+.pmr:last-child{border-bottom:none;padding-bottom:0;}
+.pmr-key{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+
+/* GOODS */
+.goods-layout{display:grid;grid-template-columns:1fr 1fr;gap:48px;}
+.goods-grid-sel{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
+.goods-option{background:var(--card);border:2px solid var(--border);padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+.goods-option:hover{border-color:var(--muted);}
+.goods-option.sel{border-color:var(--accent);background:rgba(255,107,53,.07);}
+.goods-option-badge{position:absolute;top:6px;right:6px;background:var(--accent);color:#fff;font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1px;padding:2px 5px;text-transform:uppercase;}
+.goods-option-icon{font-size:32px;margin-bottom:6px;}
+.goods-option-name{font-size:12px;font-weight:500;margin-bottom:2px;}
+.goods-option-price{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);}
+.goods-config{display:flex;flex-direction:column;gap:14px;}
+.qty-row{display:flex;align-items:center;}
+.qty-btn{width:36px;height:36px;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.qty-val{width:48px;text-align:center;background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:14px;padding:6px 0;}
+.btn-order{width:100%;padding:16px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:3px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;cursor:pointer;transition:all .2s;clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);}
+.btn-order:hover{background:#ff8555;box-shadow:0 12px 40px rgba(255,107,53,.3);}
+.goods-img-upload-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;}
+.goods-img-thumb{width:64px;height:64px;border:2px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:26px;transition:border-color .2s;position:relative;overflow:hidden;flex-shrink:0;background:var(--surface);}
+.goods-img-thumb:hover{border-color:var(--muted);}
+.goods-img-thumb.sel-img{border-color:var(--accent);}
+.goods-img-thumb img{width:100%;height:100%;object-fit:cover;}
+.goods-add-img{width:64px;height:64px;border:2px dashed var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--muted);transition:all .2s;flex-shrink:0;background:var(--surface);}
+.goods-add-img:hover{border-color:var(--accent);color:var(--accent);}
+.goods-preview{position:sticky;top:80px;}
+.preview-panel{background:var(--card);border:1px solid var(--border);padding:32px;}
+.preview-panel-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:20px;}
+.mockup-area{width:100%;aspect-ratio:1;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:20px;overflow:hidden;}
+.mockup-bg-pattern{position:absolute;inset:0;background-image:repeating-linear-gradient(45deg,transparent,transparent 20px,rgba(255,107,53,.04) 20px,rgba(255,107,53,.04) 21px);}
+.mockup-product{font-size:80px;position:relative;z-index:2;}
+.mockup-product img{width:120px;height:120px;object-fit:contain;}
+.mockup-nft-stamp{position:absolute;bottom:16px;right:16px;z-index:3;background:rgba(10,10,15,.85);border:1px solid var(--accent);padding:6px 10px;font-family:'Space Mono',monospace;font-size:8px;color:var(--accent);letter-spacing:1px;}
+[data-theme="light"] .mockup-nft-stamp{background:rgba(245,244,240,.92);}
+.preview-meta{display:flex;flex-direction:column;gap:10px;}
+.preview-total{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--accent);letter-spacing:2px;}
+.nft-source-badge{margin-top:16px;padding:12px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.25);display:flex;align-items:center;gap:10px;}
+.nft-source-icon{font-size:18px;}
+.nft-source-text{font-family:'Space Mono',monospace;font-size:9px;color:var(--accent2);letter-spacing:1px;line-height:1.5;}
+
+/* DOWNLOAD */
+.download-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.dl-card{background:var(--card);border:1px solid var(--border);overflow:hidden;transition:all .25s;cursor:pointer;position:relative;}
+.dl-card:hover{border-color:var(--accent);transform:translateY(-4px);}
+.dl-card-img{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:56px;position:relative;overflow:hidden;}
+.dl-overlay{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;transition:opacity .2s;}
+.dl-card:hover .dl-overlay{opacity:1;}
+.dl-btn-i{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:10px 20px;cursor:pointer;}
+.dl-card-body{padding:16px;}
+.dl-card-name{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;margin-bottom:4px;}
+.dl-card-meta{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;}
+.dl-res{color:var(--accent3);}
+.dl-lock{position:absolute;inset:0;background:rgba(10,10,15,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+[data-theme="light"] .dl-lock{background:rgba(245,244,240,.92);}
+
+/* MINING */
+.mining-header{padding:48px 80px 32px;display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--border);}
+.mining-layout{display:grid;grid-template-columns:1fr 380px;gap:40px;padding:48px 80px;}
+.mining-arena{background:var(--card);border:1px solid var(--border);overflow:hidden;position:relative;display:flex;flex-direction:column;min-height:480px;}
+.arena-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.arena-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;}
+.arena-status{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+.arena-canvas-wrap{flex:1;position:relative;overflow:hidden;min-height:360px;}
+#miningCanvas{display:block;width:100%;height:100%;}
+.mining-panel{display:flex;flex-direction:column;gap:16px;}
+.mine-card{background:var(--card);border:1px solid var(--border);padding:22px;}
+.mine-card-title{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
+.mine-big-num{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--accent);letter-spacing:2px;line-height:1;}
+.mine-big-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px;}
+.mine-bar-wrap{background:var(--border);height:6px;margin-top:12px;}
+.mine-bar{height:6px;background:var(--accent);width:0%;transition:width .4s;}
+.mine-bar.full{background:var(--accent3);}
+.mine-rows{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.mine-row{display:flex;justify-content:space-between;font-size:12px;padding:8px 0;border-bottom:1px solid var(--border);}
+.mine-row:last-child{border-bottom:none;}
+.mine-row-key{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+.mine-row-val{font-size:12px;}
+.mine-row-val.g{color:var(--accent3);}
+.mine-row-val.o{color:var(--accent);}
+.mine-pet-sel{display:flex;gap:8px;flex-wrap:wrap;}
+.mine-pet-btn{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);padding:9px 12px;cursor:pointer;transition:all .2s;font-size:13px;color:var(--text);}
+.mine-pet-btn:hover{border-color:var(--muted);}
+.mine-pet-btn.active{border-color:var(--accent);color:var(--accent);}
+.mine-pet-icon{font-size:18px;}
+.mine-actions{display:flex;gap:10px;}
+.btn-mine-go{flex:1;padding:14px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;cursor:pointer;transition:all .2s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);}
+.btn-mine-go:hover{background:#ff8555;}
+.btn-mine-stop{flex:1;padding:14px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:transparent;color:var(--muted);border:1px solid var(--border);cursor:pointer;transition:all .2s;}
+.btn-mine-stop:hover{border-color:var(--text);color:var(--text);}
+.mine-guide{background:rgba(124,58,237,.06);border:1px solid rgba(124,58,237,.25);padding:18px 20px;}
+.mine-guide-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:12px;}
+.mine-guide-step{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:6px;}
+.mine-guide-num{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent2);flex-shrink:0;width:16px;}
+.claimed-list{display:flex;flex-direction:column;gap:8px;max-height:180px;overflow-y:auto;}
+.claimed-empty{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;text-align:center;padding:16px;}
+.claimed-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);padding:10px 14px;animation:slide-in .3s ease;}
+@keyframes slide-in{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+.claimed-icon{font-size:18px;flex-shrink:0;}
+.claimed-info{flex:1;}
+.claimed-name{font-size:12px;font-weight:500;}
+.claimed-id{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);}
+.claimed-badge{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;padding:3px 7px;background:rgba(16,185,129,.15);color:var(--accent3);text-transform:uppercase;}
+
+/* MODALS */
+.modal-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--card);border:1px solid var(--border);width:500px;max-width:95vw;padding:40px;position:relative;animation:modal-in .3s ease;max-height:90vh;overflow-y:auto;}
+@keyframes modal-in{from{opacity:0;transform:scale(.95) translateY(20px)}to{opacity:1;transform:none}}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;}
+.modal-close:hover{color:var(--text);}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;margin-bottom:8px;}
+.modal-sub{color:var(--muted);font-size:13px;margin-bottom:28px;}
+.nft-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
+.nft-type-option{background:var(--surface);border:2px solid var(--border);padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;}
+.nft-type-option:hover,.nft-type-option.selected{border-color:var(--accent);background:rgba(255,107,53,.08);}
+.nft-type-option-icon{font-size:28px;margin-bottom:6px;}
+.nft-type-option-name{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+.supply-info{padding:14px 16px;background:var(--surface);border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-family:'Space Mono',monospace;font-size:11px;margin-bottom:24px;}
+.supply-label{color:var(--muted);letter-spacing:1px;}
+.supply-val{color:var(--accent);}
+.prog-wrap{margin-top:8px;background:var(--border);height:3px;width:200px;}
+.prog-fill{height:3px;background:var(--accent);width:30%;}
+.btn-modal-mint{width:100%;padding:16px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:3px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;cursor:pointer;transition:all .2s;clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);}
+.btn-modal-mint:hover{background:#ff8555;}
+.mint-success{display:none;text-align:center;padding:20px 0;}
+.mint-success.show{display:block;}
+.success-icon{font-size:64px;margin-bottom:16px;animation:bounce .5s ease;}
+@keyframes bounce{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+.success-title{font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:2px;color:var(--accent3);margin-bottom:8px;}
+.success-sub{color:var(--muted);font-size:14px;line-height:1.7;}
+.tx-hash{margin-top:20px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);word-break:break-all;}
+
+/* TOAST */
+.toast{position:fixed;bottom:32px;right:32px;z-index:400;background:var(--card);border:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px;transform:translateY(100px);opacity:0;transition:all .3s;max-width:360px;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast-dot{width:8px;height:8px;border-radius:50%;background:var(--accent3);flex-shrink:0;}
+.toast-text{font-size:13px;}
+.toast-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .hero{grid-template-columns:1fr;}.hero-right{display:none;}
+  .register-layout,.mypage-grid,.verify-layout,.goods-layout,.mining-layout{grid-template-columns:1fr;}
+  .stats-bar{grid-template-columns:repeat(2,1fr);}
+  .nft-grid,.bm-grid{grid-template-columns:repeat(2,1fr);}
+  .download-grid{grid-template-columns:repeat(2,1fr);}
+  nav,.section,.mypage-layout,.mining-header{padding-left:20px;padding-right:20px;}
+  .register-layout{padding:40px 20px;}
+  .gate-banner,.holder-tab-content{padding:20px;}
+  .holder-tabs{padding:0 20px;}
+  .mining-layout{padding:30px 20px;}
+  .nav-links{gap:12px;}
+}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo" onclick="showPage('home')">PAW<span>CHAIN</span></div>
+  <div class="nav-links">
+    <a onclick="showPage('home')"     class="active" id="nav-home">홈</a>
+    <a onclick="showPage('register')"              id="nav-register">등록</a>
+    <a onclick="showPage('mypage')"                id="nav-mypage">마이페이지</a>
+    <a onclick="showPage('holder')"                id="nav-holder">보유자 전용</a>
+    <a onclick="showPage('mining')"                id="nav-mining">⛏ 채굴</a>
+  </div>
+  <div class="nav-right">
+    <div class="theme-wrap">
+      <span class="theme-lbl" id="themeLabel">🌙 DARK</span>
+      <button class="theme-toggle" onclick="toggleTheme()"></button>
+    </div>
+    <button class="btn-connect" id="walletBtn" onclick="connectWallet()">지갑 연결</button>
+  </div>
+</nav>
+
+<!-- HOME -->
+<div class="page active" id="page-home">
+  <section class="hero">
+    <div class="hero-left">
+      <div class="hero-tag">Web3 반려동물 생태계</div>
+      <h1 class="hero-h1">당신의<br>반려동물을<br><em>체인 위에</em></h1>
+      <p class="hero-sub">SBT로 소유권을 증명하고, NFT로 특별한 순간을 영원히 보존하세요. 동물별 채굴로 희귀 NFT도 획득하세요.</p>
+      <div class="hero-ctas">
+        <button class="btn-primary" onclick="showPage('register')">반려동물 등록하기</button>
+        <button class="btn-outline" onclick="showPage('mining')">⛏ 채굴 시작</button>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="floating-card">
+        <span class="sbt-tag">SBT</span>
+        <div class="card-badge">🔒 양도 불가 · 인증됨</div>
+        <div class="card-pet-img">🐕</div>
+        <div class="card-name">MOCHI</div>
+        <div class="card-meta">
+          <div><div class="card-meta-label">품종</div><div style="font-size:13px;margin-top:2px">포메라니안</div></div>
+          <div><div class="card-meta-label">발행일</div><div class="card-meta-val">2024.03.15</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="stats-bar">
+    <div class="stat-item"><div class="stat-num">2,847</div><div class="stat-label">등록된 반려동물</div></div>
+    <div class="stat-item"><div class="stat-num">1,203</div><div class="stat-label">발행된 NFT</div></div>
+    <div class="stat-item"><div class="stat-num">892</div><div class="stat-label">SBT 보유자</div></div>
+    <div class="stat-item"><div class="stat-num">341</div><div class="stat-label">채굴 완료</div></div>
+  </div>
+  <section class="section">
+    <div class="section-tag">사용자 흐름</div>
+    <h2 class="section-h2">어떻게 작동하나요?</h2>
+    <p class="section-sub">지갑 연결부터 채굴까지, 완성된 반려동물 디지털 생태계.</p>
+    <div class="flow-steps">
+      <div class="flow-step"><div class="flow-num">01</div><div class="flow-icon">🦊</div><div class="flow-name">지갑 연결</div><div class="flow-desc">MetaMask</div></div>
+      <div class="flow-step"><div class="flow-num">02</div><div class="flow-icon">📝</div><div class="flow-name">반려동물 등록</div><div class="flow-desc">정보 + 이미지</div></div>
+      <div class="flow-step"><div class="flow-num">03</div><div class="flow-icon">🔒</div><div class="flow-name">SBT 발급</div><div class="flow-desc">양도 불가 토큰</div></div>
+      <div class="flow-step"><div class="flow-num">04</div><div class="flow-icon">⛏</div><div class="flow-name">NFT 채굴</div><div class="flow-desc">동물별 애니메이션</div></div>
+      <div class="flow-step"><div class="flow-num">05</div><div class="flow-icon">🎨</div><div class="flow-name">NFT 발행</div><div class="flow-desc">기념 NFT 민팅</div></div>
+      <div class="flow-step"><div class="flow-num">06</div><div class="flow-icon">✅</div><div class="flow-name">보유 확인</div><div class="flow-desc">토큰 게이팅</div></div>
+      <div class="flow-step"><div class="flow-num">07</div><div class="flow-icon">🧸</div><div class="flow-name">굿즈 제작</div><div class="flow-desc">내 사진으로</div></div>
+    </div>
+  </section>
+  <section class="section" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+    <div class="section-tag">수익 모델</div>
+    <h2 class="section-h2">비즈니스 모델</h2>
+    <p class="section-sub">인증과 거래를 분리한 토큰 구조로 지속 가능한 수익 생태계.</p>
+    <div class="bm-grid">
+      <div class="bm-card"><div class="bm-num">01</div><div class="bm-icon">💸</div><div class="bm-title">NFT 발행 수수료</div><div class="bm-desc">기념 NFT 생성 시 발행 수수료 발생. 생일, 입양일 등 특별한 순간마다 수익 창출.</div></div>
+      <div class="bm-card"><div class="bm-num">02</div><div class="bm-icon">🎁</div><div class="bm-title">굿즈 교환권</div><div class="bm-desc">NFT 보유자 전용 실물 굿즈. 내 사진을 직접 올려 나만의 굿즈 제작.</div></div>
+      <div class="bm-card"><div class="bm-num">03</div><div class="bm-icon">⛏</div><div class="bm-title">채굴 보상</div><div class="bm-desc">동물별 고유 채굴 방식으로 희소 NFT 획득. 햄스터는 Legendary 등급 가능.</div></div>
+    </div>
+  </section>
+</div>
+
+<!-- REGISTER -->
+<div class="page" id="page-register">
+  <div class="register-layout">
+    <div>
+      <div class="form-title">반려동물<br>등록</div>
+      <p class="form-sub">정보를 입력하면 지갑에 SBT가 발급됩니다.<br>발급된 SBT는 양도할 수 없으며, 소유권 인증 역할을 합니다.</p>
+      <div class="upload-area" onclick="document.getElementById('fileInput').click()" id="uploadArea">
+        <div class="upload-icon">📷</div>
+        <p class="upload-text"><strong>클릭하여 이미지 업로드</strong><br>또는 드래그 앤 드롭 (IPFS 저장)</p>
+      </div>
+      <input type="file" id="fileInput" style="display:none" accept="image/*" onchange="handleFileUpload(event)">
+      <div style="margin-top:28px">
+        <div class="form-group"><label class="form-label">반려동물 이름 *</label><input type="text" class="form-input" id="petName" placeholder="예: 모찌" oninput="updatePreview()"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">종류 *</label>
+            <select class="form-select form-input" id="petType" onchange="updatePreview()">
+              <option value="">선택</option>
+              <option value="강아지">강아지 🐕</option>
+              <option value="고양이">고양이 🐈</option>
+              <option value="토끼">토끼 🐇</option>
+              <option value="햄스터">햄스터 🐹</option>
+              <option value="기타">기타 🐾</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">품종</label><input type="text" class="form-input" id="petBreed" placeholder="예: 포메라니안" oninput="updatePreview()"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">생년월일</label><input type="date" class="form-input" id="petBirth" oninput="updatePreview()"></div>
+          <div class="form-group"><label class="form-label">입양일</label><input type="date" class="form-input" id="petAdopt" oninput="updatePreview()"></div>
+        </div>
+        <div class="form-group"><label class="form-label">보호자 지갑 주소</label><input type="text" class="form-input" id="walletAddr" placeholder="MetaMask 연결 시 자동 입력" readonly style="color:var(--muted)"></div>
+        <button class="btn-full" onclick="mintSBT()">🔒 SBT 발급하기</button>
+      </div>
+    </div>
+    <div class="preview-section">
+      <div class="preview-label">미리보기 · SBT 카드</div>
+      <div class="preview-card">
+        <div class="preview-img" id="previewImg">🐾</div>
+        <div class="preview-name" id="previewName">반려동물 이름</div>
+        <div class="preview-breed" id="previewBreed">종류 · 품종</div>
+        <div class="preview-rows">
+          <div class="preview-row"><span class="preview-row-key">생년월일</span><span id="previewBirth">—</span></div>
+          <div class="preview-row"><span class="preview-row-key">입양일</span><span id="previewAdopt">—</span></div>
+          <div class="preview-row"><span class="preview-row-key">토큰 유형</span><span style="color:var(--accent2)">SBT (양도 불가)</span></div>
+          <div class="preview-row"><span class="preview-row-key">저장소</span><span style="color:var(--accent3)">IPFS</span></div>
+        </div>
+        <div class="chain-badge"><div class="chain-dot"></div><div class="chain-text">Ethereum Mainnet · ERC-5114</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MYPAGE -->
+<div class="page" id="page-mypage">
+  <div class="mypage-layout">
+    <div class="mypage-header">
+      <div><div class="section-tag">마이페이지</div><h2 style="font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:2px">내 반려동물</h2></div>
+      <div><div class="wallet-label">연결된 지갑</div><div class="wallet-addr" id="myWalletAddr">0x1a2b...3c4d</div></div>
+    </div>
+    <div class="mypage-grid">
+      <div class="pet-card-main">
+        <div class="pet-card-main-img">🐕</div>
+        <div class="verified-badge">✓ SBT 인증됨</div>
+        <div class="pet-main-name">MOCHI</div>
+        <div class="pet-main-breed">강아지 · 포메라니안</div>
+        <div class="info-grid">
+          <div class="info-cell"><div class="info-cell-key">생년월일</div><div class="info-cell-val">2022.05.10</div></div>
+          <div class="info-cell"><div class="info-cell-key">입양일</div><div class="info-cell-val">2022.06.01</div></div>
+          <div class="info-cell"><div class="info-cell-key">NFT 보유</div><div class="info-cell-val" style="color:var(--accent)">3개</div></div>
+          <div class="info-cell"><div class="info-cell-key">네트워크</div><div class="info-cell-val">Ethereum</div></div>
+        </div>
+        <div class="sbt-block"><div class="sbt-icon">🔒</div><div><div class="sbt-info-label">SBT 발급됨</div><div class="sbt-info-val">Token #0041 · 2022.06.01</div></div></div>
+        <div class="holder-section">
+          <div class="holder-title">보유자 전용 기능</div>
+          <div class="holder-features">
+            <div class="holder-feat" onclick="goHolder('goods')"><div class="holder-feat-icon">🧸</div><div class="holder-feat-name">굿즈 제작</div><div class="holder-feat-desc">내 사진으로</div></div>
+            <div class="holder-feat" onclick="goHolder('download')"><div class="holder-feat-icon">🖼️</div><div class="holder-feat-name">이미지 다운로드</div><div class="holder-feat-desc">HD 기념 이미지</div></div>
+            <div class="holder-feat" onclick="showPage('mining')"><div class="holder-feat-icon">⛏</div><div class="holder-feat-name">NFT 채굴</div><div class="holder-feat-desc">동물별 채굴</div></div>
+            <div class="holder-feat locked"><div class="holder-feat-icon">🏥</div><div class="holder-feat-name">병원 연동</div><div class="holder-feat-desc">진료 기록</div><div class="lock-overlay">🔒<span style="font-size:9px">준비 중</span></div></div>
+          </div>
+          <button class="btn-full" style="margin-top:16px" onclick="showPage('holder')">⭐ 보유자 전용 페이지</button>
+        </div>
+      </div>
+      <div>
+        <div class="nft-section-top">
+          <div class="nft-section-title">내 NFT 컬렉션</div>
+          <button class="btn-mint" onclick="openMintModal()">+ 기념 NFT 생성</button>
+        </div>
+        <div class="nft-grid" id="nftGrid">
+          <div class="nft-item"><div class="nft-item-img" style="background:linear-gradient(135deg,#1a1226,#2d1f3d)"><span class="nft-type-badge badge-birthday">생일 기념</span>🎂</div><div class="nft-item-body"><div class="nft-item-name">MOCHI's 2nd Birthday</div><div class="nft-item-meta"><span class="nft-item-edition">Edition 3/10</span><span class="nft-item-num">#0023</span></div></div></div>
+          <div class="nft-item"><div class="nft-item-img" style="background:linear-gradient(135deg,#0a1628,#1a2f4a)"><span class="nft-type-badge badge-adoption">입양 기념</span>🏠</div><div class="nft-item-body"><div class="nft-item-name">Adoption Day 2022</div><div class="nft-item-meta"><span class="nft-item-edition">Edition 1/100</span><span class="nft-item-num">#0001</span></div></div></div>
+          <div class="nft-item"><div class="nft-item-img" style="background:linear-gradient(135deg,#1a0f0a,#3d1a0a)"><span class="nft-type-badge badge-limited">한정판</span>✨</div><div class="nft-item-body"><div class="nft-item-name">Golden Pom #001</div><div class="nft-item-meta"><span class="nft-item-edition">Edition 1/5</span><span class="nft-item-num">#0007</span></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HOLDER -->
+<div class="page" id="page-holder">
+  <div class="gate-banner">
+    <div class="gate-left"><div class="gate-nft-thumb">🎂</div><div><div class="gate-info-label">보유 NFT 기반 접근</div><div class="gate-info-val">MOCHI's NFT Holder Dashboard</div></div></div>
+    <div class="gate-right"><div style="text-align:right"><div class="gate-count">3</div><div class="gate-count-label">보유 NFT</div></div><div class="gate-badge">✓ 보유 확인됨</div></div>
+  </div>
+  <div class="holder-tabs">
+    <button class="holder-tab active" onclick="switchTab('verify',this)">🔍 NFT 보유 확인</button>
+    <button class="holder-tab" onclick="switchTab('goods',this)">🧸 굿즈 제작</button>
+    <button class="holder-tab" onclick="switchTab('download',this)">🖼️ 이미지 다운로드</button>
+  </div>
+
+  <div class="holder-tab-content active" id="tab-verify">
+    <div class="verify-layout">
+      <div>
+        <div class="verify-card">
+          <div class="verify-card-title">보유 NFT 목록</div>
+          <div class="nft-verify-list">
+            <div class="nft-verify-item"><div class="nft-verify-thumb" style="background:linear-gradient(135deg,#1a1226,#2d1f3d)">🎂</div><div class="nft-verify-info"><div class="nft-verify-name">MOCHI's 2nd Birthday</div><div class="nft-verify-id">Token #0023 · Edition 3/10</div></div><div class="nft-verify-status status-verified">✓ 확인됨</div></div>
+            <div class="nft-verify-item"><div class="nft-verify-thumb" style="background:linear-gradient(135deg,#0a1628,#1a2f4a)">🏠</div><div class="nft-verify-info"><div class="nft-verify-name">Adoption Day 2022</div><div class="nft-verify-id">Token #0001 · Edition 1/100</div></div><div class="nft-verify-status status-verified">✓ 확인됨</div></div>
+            <div class="nft-verify-item"><div class="nft-verify-thumb" style="background:linear-gradient(135deg,#1a0f0a,#3d1a0a)">✨</div><div class="nft-verify-info"><div class="nft-verify-name">Golden Pom #001</div><div class="nft-verify-id">Token #0007 · Edition 1/5</div></div><div class="nft-verify-status status-verified">✓ 확인됨</div></div>
+          </div>
+        </div>
+        <div class="verify-card" style="margin-top:14px">
+          <div class="verify-card-title">지갑 검증 정보</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="pmr"><span class="pmr-key">지갑 주소</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent3)">0x1a2b...9a0b</span></div>
+            <div class="pmr"><span class="pmr-key">SBT 토큰</span><span style="color:var(--accent2)">Token #0041</span></div>
+            <div class="pmr"><span class="pmr-key">총 보유 NFT</span><span style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--accent)">3개</span></div>
+          </div>
+          <div class="chain-badge" style="margin-top:16px"><div class="chain-dot"></div><div class="chain-text">Ethereum Mainnet · ERC-721 검증 완료</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="verify-card">
+          <div class="verify-card-title">기능 접근 권한</div>
+          <div class="access-matrix">
+            <div class="access-row"><div class="access-row-left"><div class="access-row-icon">🧸</div><div><div class="access-row-name">굿즈 제작</div><div class="access-row-req">NFT 1개 이상</div></div></div><div class="access-pill pill-open">✓ 접근 가능</div></div>
+            <div class="access-row"><div class="access-row-left"><div class="access-row-icon">🖼️</div><div><div class="access-row-name">HD 이미지 다운로드</div><div class="access-row-req">NFT 1개 이상</div></div></div><div class="access-pill pill-open">✓ 접근 가능</div></div>
+            <div class="access-row"><div class="access-row-left"><div class="access-row-icon">⛏</div><div><div class="access-row-name">NFT 채굴</div><div class="access-row-req">SBT 보유자</div></div></div><div class="access-pill pill-open">✓ 접근 가능</div></div>
+            <div class="access-row"><div class="access-row-left"><div class="access-row-icon">🎫</div><div><div class="access-row-name">프리미엄 NFT 발행</div><div class="access-row-req">NFT 5개 이상</div></div></div><div class="access-pill pill-locked">🔒 NFT 2개 더 필요</div></div>
+            <div class="access-row"><div class="access-row-left"><div class="access-row-icon">🏥</div><div><div class="access-row-name">병원 진료 기록 연동</div><div class="access-row-req">SBT + 파트너 병원</div></div></div><div class="access-pill pill-locked">준비 중</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="holder-tab-content" id="tab-goods">
+    <div class="goods-layout">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:1px;margin-bottom:20px">굿즈 종류 선택</div>
+        <div class="goods-grid-sel">
+          <div class="goods-option sel" onclick="selectGoods(this,'머그컵','☕',15000)"><div class="goods-option-badge">인기</div><div class="goods-option-icon">☕</div><div class="goods-option-name">머그컵</div><div class="goods-option-price">₩15,000</div></div>
+          <div class="goods-option" onclick="selectGoods(this,'쿠션','🛋️',22000)"><div class="goods-option-icon">🛋️</div><div class="goods-option-name">쿠션</div><div class="goods-option-price">₩22,000</div></div>
+          <div class="goods-option" onclick="selectGoods(this,'에코백','👜',18000)"><div class="goods-option-icon">👜</div><div class="goods-option-name">에코백</div><div class="goods-option-price">₩18,000</div></div>
+          <div class="goods-option" onclick="selectGoods(this,'아크릴 스탠드','🪪',12000)"><div class="goods-option-icon">🪪</div><div class="goods-option-name">아크릴</div><div class="goods-option-price">₩12,000</div></div>
+          <div class="goods-option" onclick="selectGoods(this,'후드티','👕',42000)"><div class="goods-option-icon">👕</div><div class="goods-option-name">후드티</div><div class="goods-option-price">₩42,000</div></div>
+          <div class="goods-option" onclick="selectGoods(this,'포스터','🖼',9000)"><div class="goods-option-icon">🖼</div><div class="goods-option-name">포스터</div><div class="goods-option-price">₩9,000</div></div>
+        </div>
+        <div class="goods-config">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">굿즈에 넣을 이미지 <span style="color:var(--accent)">★ 내 사진 직접 업로드 가능</span></label>
+            <div class="goods-img-upload-row" id="goodsImgRow">
+              <div class="goods-img-thumb sel-img" data-label="Birthday NFT #0023" onclick="pickGoodsImg(this,'🎂','linear-gradient(135deg,#1a1226,#2d1f3d)',null,'Birthday NFT #0023')"><span>🎂</span></div>
+              <div class="goods-img-thumb" data-label="Adoption Day #0001" onclick="pickGoodsImg(this,'🏠','linear-gradient(135deg,#0a1628,#1a2f4a)',null,'Adoption Day #0001')"><span>🏠</span></div>
+              <div class="goods-img-thumb" data-label="Golden Pom #0007" onclick="pickGoodsImg(this,'✨','linear-gradient(135deg,#1a0f0a,#3d1a0a)',null,'Golden Pom #0007')"><span>✨</span></div>
+              <div class="goods-add-img" onclick="document.getElementById('goodsImgInput').click()" title="내 사진 업로드">➕</div>
+            </div>
+            <input type="file" id="goodsImgInput" style="display:none" accept="image/*" onchange="addGoodsImg(event)">
+            <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-top:6px;letter-spacing:1px">선택된 이미지: <span id="selImgLabel" style="color:var(--accent)">Birthday NFT #0023</span></div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">수량</label>
+            <div class="qty-row"><button class="qty-btn" onclick="changeQty(-1)">−</button><div class="qty-val" id="qtyVal">1</div><button class="qty-btn" onclick="changeQty(1)">+</button></div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">배송 메모</label>
+            <input type="text" class="form-input" placeholder="예: 선물 포장 요청">
+          </div>
+          <button class="btn-order" onclick="openOrderModal()">🧸 굿즈 주문하기 · NFT 교환권 사용</button>
+        </div>
+      </div>
+      <div class="goods-preview">
+        <div class="preview-panel">
+          <div class="preview-panel-label">실시간 굿즈 미리보기</div>
+          <div class="mockup-area" id="mockupArea">
+            <div class="mockup-bg-pattern"></div>
+            <div class="mockup-product" id="mockupProduct"><span id="mockupEmoji">🎂</span></div>
+            <div class="mockup-nft-stamp" id="mockupStamp">NFT #0023 · MOCHI</div>
+          </div>
+          <div class="preview-meta">
+            <div class="pmr"><span class="pmr-key">선택 굿즈</span><span id="previewGoodsName">머그컵</span></div>
+            <div class="pmr"><span class="pmr-key">이미지</span><span id="previewNFTImg" style="font-size:13px">Birthday NFT #0023</span></div>
+            <div class="pmr"><span class="pmr-key">수량</span><span id="previewQty">1개</span></div>
+            <div class="pmr" style="border-bottom:none"><span class="pmr-key">총 금액</span><span class="preview-total" id="previewTotal">₩15,000</span></div>
+          </div>
+          <div class="nft-source-badge"><div class="nft-source-icon">🔗</div><div class="nft-source-text">NFT 보유 인증 기반 주문<br>ERC-721 검증됨</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="holder-tab-content" id="tab-download">
+    <div style="margin-bottom:28px">
+      <div class="section-tag">NFT 기반 이미지</div>
+      <h2 style="font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:2px;margin-bottom:8px">기념 이미지 다운로드</h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.7">NFT 보유자 전용 고해상도 이미지를 다운로드하세요.</p>
+    </div>
+    <div class="download-grid">
+      <div class="dl-card"><div class="dl-card-img" style="background:linear-gradient(135deg,#1a1226,#2d1f3d)">🎂<div class="dl-overlay"><div style="font-size:11px;color:#aaa;font-family:'Space Mono',monospace">4096×4096 px</div><button class="dl-btn-i" onclick="doDownload('Birthday NFT')">↓ 다운로드</button></div></div><div class="dl-card-body"><div class="dl-card-name">Birthday NFT #0023</div><div class="dl-card-meta"><span>2nd Birthday</span><span class="dl-res">4K</span></div></div></div>
+      <div class="dl-card"><div class="dl-card-img" style="background:linear-gradient(135deg,#0a1628,#1a2f4a)">🏠<div class="dl-overlay"><div style="font-size:11px;color:#aaa;font-family:'Space Mono',monospace">4096×4096 px</div><button class="dl-btn-i" onclick="doDownload('Adoption Day')">↓ 다운로드</button></div></div><div class="dl-card-body"><div class="dl-card-name">Adoption Day #0001</div><div class="dl-card-meta"><span>입양 기념</span><span class="dl-res">4K</span></div></div></div>
+      <div class="dl-card"><div class="dl-card-img" style="background:linear-gradient(135deg,#1a0f0a,#3d1a0a)">✨<div class="dl-overlay"><div style="font-size:11px;color:#aaa;font-family:'Space Mono',monospace">4096×4096 px</div><button class="dl-btn-i" onclick="doDownload('Golden Pom')">↓ 다운로드</button></div></div><div class="dl-card-body"><div class="dl-card-name">Golden Pom #0007</div><div class="dl-card-meta"><span>한정판</span><span class="dl-res">4K</span></div></div></div>
+      <div class="dl-card" style="opacity:.55"><div class="dl-card-img" style="background:var(--surface)">🎴<div class="dl-lock">🔒<span style="font-size:9px;margin-top:4px">NFT 미보유</span></div></div><div class="dl-card-body"><div class="dl-card-name" style="color:var(--muted)">Premium NFT #0099</div><div class="dl-card-meta"><span>프리미엄</span><span>—</span></div></div></div>
+      <div class="dl-card" style="opacity:.55"><div class="dl-card-img" style="background:var(--surface)">🎴<div class="dl-lock">🔒<span style="font-size:9px;margin-top:4px">NFT 미보유</span></div></div><div class="dl-card-body"><div class="dl-card-name" style="color:var(--muted)">Diamond Edition</div><div class="dl-card-meta"><span>다이아몬드</span><span>—</span></div></div></div>
+      <div class="dl-card" style="opacity:.55"><div class="dl-card-img" style="background:var(--surface)">🎴<div class="dl-lock">🔒<span style="font-size:9px;margin-top:4px">NFT 미보유</span></div></div><div class="dl-card-body"><div class="dl-card-name" style="color:var(--muted)">Mining Rare NFT</div><div class="dl-card-meta"><span>채굴 희귀</span><span>—</span></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MINING -->
+<div class="page" id="page-mining">
+  <div class="mining-header">
+    <div>
+      <div class="section-tag">NFT 채굴</div>
+      <h2 style="font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:2px">반려동물 채굴소</h2>
+      <p style="color:var(--muted);font-size:14px;margin-top:4px">동물을 선택하면 그 동물만의 방식으로 채굴합니다. 게이지가 꽉 차면 NFT 획득!</p>
+    </div>
+    <div style="text-align:right"><div class="gate-count" id="mineTotal">0</div><div class="gate-count-label">채굴 완료 NFT</div></div>
+  </div>
+  <div class="mining-layout">
+    <div>
+      <div class="mining-arena">
+        <div class="arena-header">
+          <div class="arena-title" id="arenaTitle">채굴 대기 중</div>
+          <div class="arena-status" id="arenaStatus">동물을 선택하고 시작하세요</div>
+        </div>
+        <div class="arena-canvas-wrap">
+          <canvas id="miningCanvas"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="mining-panel">
+      <div class="mine-card">
+        <div class="mine-card-title">채굴할 반려동물 선택</div>
+        <div class="mine-pet-sel">
+          <div class="mine-pet-btn active" onclick="selectMinePet(this,'강아지','🐕')"><span class="mine-pet-icon">🐕</span>강아지</div>
+          <div class="mine-pet-btn" onclick="selectMinePet(this,'고양이','🐈')"><span class="mine-pet-icon">🐈</span>고양이</div>
+          <div class="mine-pet-btn" onclick="selectMinePet(this,'토끼','🐇')"><span class="mine-pet-icon">🐇</span>토끼</div>
+          <div class="mine-pet-btn" onclick="selectMinePet(this,'햄스터','🐹')"><span class="mine-pet-icon">🐹</span>햄스터</div>
+        </div>
+      </div>
+      <div class="mine-card">
+        <div class="mine-card-title">채굴 진행도</div>
+        <div class="mine-big-num" id="mineProgress">0%</div>
+        <div class="mine-big-label">채굴 완료까지</div>
+        <div class="mine-bar-wrap"><div class="mine-bar" id="mineBar"></div></div>
+        <div class="mine-rows">
+          <div class="mine-row"><span class="mine-row-key">선택 동물</span><span class="mine-row-val o" id="mineAnimal">강아지 🐕</span></div>
+          <div class="mine-row"><span class="mine-row-key">채굴 방식</span><span class="mine-row-val" id="mineMethod">달리기 채굴</span></div>
+          <div class="mine-row"><span class="mine-row-key">난이도</span><span class="mine-row-val" id="mineDiff">보통</span></div>
+          <div class="mine-row"><span class="mine-row-key">예상 보상</span><span class="mine-row-val g" id="mineReward">Common NFT</span></div>
+        </div>
+      </div>
+      <div class="mine-actions">
+        <button class="btn-mine-go" onclick="startMining()">⛏ 채굴 시작</button>
+        <button class="btn-mine-stop" onclick="stopMining()">■ 정지</button>
+      </div>
+      <div class="mine-guide">
+        <div class="mine-guide-title">📖 채굴이란?</div>
+        <div class="mine-guide-step"><span class="mine-guide-num">01</span><span>동물을 선택하면 그 동물 고유의 채굴 애니메이션이 시작됩니다.</span></div>
+        <div class="mine-guide-step"><span class="mine-guide-num">02</span><span>시간이 지나면서 게이지가 채워지고, 100%가 되면 NFT가 자동 발행됩니다.</span></div>
+        <div class="mine-guide-step"><span class="mine-guide-num">03</span><span>동물마다 채굴 방식과 난이도가 다르고, 획득 NFT 디자인도 다릅니다.</span></div>
+        <div class="mine-guide-step"><span class="mine-guide-num">04</span><span>햄스터로 채굴하면 Legendary 등급 NFT를 획득할 수 있습니다!</span></div>
+      </div>
+      <div class="mine-card">
+        <div class="mine-card-title">채굴 완료 NFT</div>
+        <div class="claimed-list" id="claimedList">
+          <div class="claimed-empty">아직 채굴된 NFT가 없습니다</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MINT MODAL -->
+<div class="modal-overlay" id="mintModal">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('mintModal').classList.remove('open')">✕</button>
+    <div id="mintForm">
+      <div class="modal-title">기념 NFT 생성</div>
+      <p class="modal-sub">MOCHI를 위한 특별한 순간을 블록체인에 영구 기록하세요.</p>
+      <div class="nft-type-grid">
+        <div class="nft-type-option selected" onclick="selNFTType(this)"><div class="nft-type-option-icon">🎂</div><div class="nft-type-option-name">생일 기념</div></div>
+        <div class="nft-type-option" onclick="selNFTType(this)"><div class="nft-type-option-icon">🏠</div><div class="nft-type-option-name">입양 기념</div></div>
+        <div class="nft-type-option" onclick="selNFTType(this)"><div class="nft-type-option-icon">✨</div><div class="nft-type-option-name">한정판</div></div>
+      </div>
+      <div class="supply-info"><div><div class="supply-label">발행량 (Max Supply)</div><div class="prog-wrap" style="margin-top:8px"><div class="prog-fill"></div></div></div><div class="supply-val">3 / 10 발행됨</div></div>
+      <div class="form-group"><label class="form-label">발행 수량</label><select class="form-select form-input"><option>1개 발행</option><option>2개 발행</option><option>5개 발행</option></select></div>
+      <button class="btn-modal-mint" onclick="doMint()">🎨 NFT 발행하기 · 0.005 ETH</button>
+    </div>
+    <div class="mint-success" id="mintSuccess">
+      <div class="success-icon">🎉</div>
+      <div class="success-title">발행 완료!</div>
+      <p class="success-sub">기념 NFT가 성공적으로<br>지갑에 발행되었습니다.</p>
+      <div class="tx-hash">TX: 0x7f4a2c8b3e1d9f6a5c2b8e4d7a1f3c6b9e2d5a8c</div>
+    </div>
+  </div>
+</div>
+
+<!-- ORDER MODAL -->
+<div class="modal-overlay" id="orderModal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeOrderModal()">✕</button>
+    <div style="text-align:center;padding:12px 0">
+      <div class="success-icon">🧸</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;color:var(--accent)">주문 완료!</div>
+      <p style="color:var(--muted);font-size:14px;margin:12px 0">NFT 교환권이 사용되었습니다.<br>굿즈 제작 후 배송까지 5~7일 소요됩니다.</p>
+      <div class="tx-hash">NFT Token #0023 · 교환권 소모<br>TX: 0x3f8a1c2b4e5d7f9a0c2b4e6d8f1a3c5e</div>
+      <div style="margin-top:20px;padding:16px;background:var(--surface);border:1px solid var(--border);text-align:left">
+        <div class="form-label" style="margin-bottom:10px">배송 정보 입력</div>
+        <input class="form-input" placeholder="수령인 이름" style="margin-bottom:8px">
+        <input class="form-input" placeholder="배송 주소">
+      </div>
+      <button class="btn-modal-mint" style="margin-top:16px" onclick="closeOrderModal()">확인 · 마이페이지로</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-dot"></div>
+  <div><div class="toast-text" id="toastText">알림</div><div class="toast-label">PAWCHAIN</div></div>
+</div>
+
+<script>
+/* ═══ THEME ═══ */
+function toggleTheme() {
+  const html = document.documentElement;
+  const dark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', dark ? 'light' : 'dark');
+  document.getElementById('themeLabel').textContent = dark ? '☀️ LIGHT' : '🌙 DARK';
+}
+
+/* ═══ NAV ═══ */
+let walletConnected = false;
+const PAGES = ['home','register','mypage','holder','mining'];
+function showPage(id) {
+  PAGES.forEach(p => {
+    document.getElementById('page-'+p).classList.remove('active');
+    document.getElementById('nav-'+p).classList.remove('active');
+  });
+  document.getElementById('page-'+id).classList.add('active');
+  document.getElementById('nav-'+id).classList.add('active');
+  window.scrollTo(0,0);
+  if (id === 'mining') { setTimeout(initCanvas, 80); }
+}
+
+/* ═══ WALLET ═══ */
+function connectWallet() {
+  const btn = document.getElementById('walletBtn');
+  if (walletConnected) return;
+  btn.textContent = '연결 중...';
+  setTimeout(() => {
+    walletConnected = true;
+    const addr = '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b';
+    const short = addr.slice(0,6)+'...'+addr.slice(-4);
+    btn.textContent = short; btn.classList.add('connected');
+    document.getElementById('walletAddr').value = short;
+    document.getElementById('myWalletAddr').textContent = short;
+    showToast('지갑이 연결되었습니다!');
+  }, 1200);
+}
+
+/* ═══ REGISTER ═══ */
+const petEmojis = {'강아지':'🐕','고양이':'🐈','토끼':'🐇','햄스터':'🐹','기타':'🐾'};
+function updatePreview() {
+  const name=document.getElementById('petName').value, type=document.getElementById('petType').value,
+        breed=document.getElementById('petBreed').value, birth=document.getElementById('petBirth').value,
+        adopt=document.getElementById('petAdopt').value;
+  document.getElementById('previewName').textContent  = name ? name.toUpperCase() : '반려동물 이름';
+  document.getElementById('previewBreed').textContent = [type,breed].filter(Boolean).join(' · ') || '종류 · 품종';
+  document.getElementById('previewImg').textContent   = petEmojis[type] || '🐾';
+  document.getElementById('previewBirth').textContent = birth ? birth.replace(/-/g,'.') : '—';
+  document.getElementById('previewAdopt').textContent = adopt ? adopt.replace(/-/g,'.') : '—';
+}
+function handleFileUpload(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    document.getElementById('uploadArea').innerHTML = `<img src="${ev.target.result}" style="width:100%;height:160px;object-fit:cover;display:block">`;
+    document.getElementById('previewImg').innerHTML  = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0">`;
+  };
+  r.readAsDataURL(file);
+}
+function mintSBT() {
+  if (!walletConnected) { showToast('먼저 지갑을 연결해주세요!'); return; }
+  if (!document.getElementById('petName').value) { showToast('반려동물 이름을 입력해주세요!'); return; }
+  showToast('SBT를 발급하고 있습니다...');
+  setTimeout(() => { showToast('✅ SBT 발급 완료!'); setTimeout(() => showPage('mypage'), 1200); }, 2000);
+}
+
+/* ═══ HOLDER TABS ═══ */
+function switchTab(id, el) {
+  document.querySelectorAll('.holder-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.holder-tab-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+}
+function goHolder(sub) {
+  showPage('holder');
+  const map = {goods:1, download:2};
+  const idx = map[sub] ?? 0;
+  document.querySelectorAll('.holder-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.holder-tab-content').forEach((c,i) => c.classList.toggle('active', i===idx));
+}
+
+/* ═══ GOODS ═══ */
+let gs = { name:'머그컵', price:15000, qty:1, imgSrc:null, imgEmoji:'🎂', imgBg:'linear-gradient(135deg,#1a1226,#2d1f3d)', imgLabel:'Birthday NFT #0023' };
+function selectGoods(el, name, emoji, price) {
+  document.querySelectorAll('.goods-option').forEach(o => o.classList.remove('sel'));
+  el.classList.add('sel');
+  Object.assign(gs, {name, price}); updateGoodsPreview();
+}
+function pickGoodsImg(el, emoji, bg, src, label) {
+  document.querySelectorAll('.goods-img-thumb').forEach(t => t.classList.remove('sel-img'));
+  el.classList.add('sel-img');
+  Object.assign(gs, {imgEmoji:emoji, imgBg:bg, imgSrc:src, imgLabel:label});
+  document.getElementById('selImgLabel').textContent = label;
+  updateGoodsPreview();
+}
+function addGoodsImg(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    const src = ev.target.result, label = file.name.replace(/\.[^.]+$/,'');
+    const row = document.getElementById('goodsImgRow');
+    const addBtn = row.querySelector('.goods-add-img');
+    const thumb = document.createElement('div');
+    thumb.className = 'goods-img-thumb'; thumb.setAttribute('data-label', label);
+    thumb.innerHTML = `<img src="${src}">`;
+    thumb.onclick = () => pickGoodsImg(thumb, null, '#111118', src, label);
+    row.insertBefore(thumb, addBtn);
+    pickGoodsImg(thumb, null, '#111118', src, label);
+    showToast('📸 이미지가 추가되었습니다!');
+  };
+  r.readAsDataURL(file);
+}
+let qty = 1;
+function changeQty(d) {
+  qty = Math.max(1, Math.min(10, qty+d)); gs.qty = qty;
+  document.getElementById('qtyVal').textContent = qty;
+  updateGoodsPreview();
+}
+function updateGoodsPreview() {
+  const mp = document.getElementById('mockupProduct');
+  if (gs.imgSrc) {
+    mp.innerHTML = `<img src="${gs.imgSrc}" style="width:120px;height:120px;object-fit:contain;border-radius:4px">`;
+  } else {
+    mp.innerHTML = `<span style="font-size:80px">${gs.imgEmoji}</span>`;
+  }
+  
+  document.getElementById('mockupArea').style.background = gs.imgBg || 'var(--surface)';
+  document.getElementById('mockupStamp').textContent = gs.imgLabel + ' · MOCHI';
+  document.getElementById('previewGoodsName').textContent = gs.name;
+  document.getElementById('previewNFTImg').textContent    = gs.imgLabel;
+  document.getElementById('previewQty').textContent       = gs.qty + '개';
+  
+  // 계산식 뒤에 누락되었던 괄호와 세미콜론을 채웠습니다.
+  const total = (gs.price * gs.qty).toLocaleString();
+  document.getElementById('previewTotal').textContent = '₩' + total;
+} // <--- 여기서 함수가 정확히 닫혀야 합니다!
+
+
+/* ─────────────────────────────────────────
+  ORDER MODAL
+───────────────────────────────────────── */
+function openOrderModal() {
+  if (!walletConnected) { showToast('먼저 지갑을 연결해주세요!'); return; }
+  document.getElementById('orderModal').classList.add('open');
+}
+function closeOrderModal() {
+  document.getElementById('orderModal').classList.remove('open');
+  showPage('mypage');
+}
+
+/* ─────────────────────────────────────────
+  DOWNLOAD
+───────────────────────────────────────── */
+function doDownload(name) {
+  showToast(`⬇️ ${name} 다운로드 중...`);
+  setTimeout(() => showToast(`✅ ${name} 다운로드 완료! (4K)`), 1500);
+}
+
+/* ─────────────────────────────────────────
+  MINT MODAL
+───────────────────────────────────────── */
+function openMintModal() {
+  document.getElementById('mintModal').classList.add('open');
+  document.getElementById('mintForm').style.display   = 'block';
+  document.getElementById('mintSuccess').classList.remove('show');
+}
+function selNFTType(el) {
+  document.querySelectorAll('.nft-type-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function doMint() {
+  if (!walletConnected) { showToast('먼저 지갑을 연결해주세요!'); return; }
+  showToast('📡 블록체인에 기록 중...');
+  setTimeout(() => {
+    document.getElementById('mintForm').style.display = 'none';
+    document.getElementById('mintSuccess').classList.add('show');
+    addNFTToGrid();
+    showToast('🎉 NFT 발행 완료!');
+  }, 2000);
+}
+function addNFTToGrid() {
+  const types = [
+    { badge:'badge-birthday', bg:'linear-gradient(135deg,#1a1226,#2d1f3d)', icon:'🎂', label:'생일 기념', name:"MOCHI's Birthday", num:'#00'+Math.floor(Math.random()*90+10) },
+    { badge:'badge-adoption', bg:'linear-gradient(135deg,#0a1628,#1a2f4a)', icon:'🏠', label:'입양 기념', name:'Adoption Day',     num:'#00'+Math.floor(Math.random()*90+10) },
+    { badge:'badge-limited',  bg:'linear-gradient(135deg,#1a0f0a,#3d1a0a)', icon:'✨', label:'한정판',   name:'Limited Edition',   num:'#00'+Math.floor(Math.random()*90+10) },
+  ];
+  const t = types[Math.floor(Math.random()*types.length)];
+  const el = document.createElement('div');
+  el.className = 'nft-item';
+  el.style.animation = 'modal-in .4s ease';
+  el.innerHTML = `
+    <div class="nft-item-img" style="background:${t.bg}">
+      <span class="nft-type-badge ${t.badge}">${t.label}</span>${t.icon}
+    </div>
+    <div class="nft-item-body">
+      <div class="nft-item-name">${t.name}</div>
+      <div class="nft-item-meta">
+        <span class="nft-item-edition">Edition 1/10</span>
+        <span class="nft-item-num">${t.num}</span>
+      </div>
+    </div>`;
+  document.getElementById('nftGrid').prepend(el);
+}
+
+/* ─────────────────────────────────────────
+  TOAST
+───────────────────────────────────────── */
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastText').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+/* ─────────────────────────────────────────
+  ══════════════════════════════════
+  MINING CANVAS SYSTEM
+  동물별 고유 채굴 애니메이션
+  ══════════════════════════════════
+───────────────────────────────────────── */
+let canvas, ctx, animId, miningActive = false;
+let mineProgress = 0, mineSpeed = 0;
+let currentAnimal = { name:'강아지', emoji:'🐕', method:'달리기 채굴', diff:'보통', reward:'Common NFT', speed:0.28 };
+let particles = [], petX = 60, petDir = 1, petBob = 0;
+
+const ANIMALS = {
+  '강아지': { emoji:'🐕', method:'달리기 채굴',   diff:'보통',   reward:'Common NFT',    speed:0.28, color:'#ff6b35' },
+  '고양이': { emoji:'🐈', method:'앉아서 채굴',   diff:'쉬움',   reward:'Rare NFT',      speed:0.18, color:'#7c3aed' },
+  '토끼':   { emoji:'🐇', method:'점프 채굴',     diff:'어려움', reward:'Epic NFT',      speed:0.42, color:'#10b981' },
+  '햄스터': { emoji:'🐹', method:'쳇바퀴 채굴',   diff:'전설급', reward:'Legendary NFT', speed:0.55, color:'#f59e0b' },
+};
+
+function selectMinePet(el, name, emoji) {
+  document.querySelectorAll('.mine-pet-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const a = ANIMALS[name];
+  currentAnimal = { name, emoji, ...a };
+  document.getElementById('mineAnimal').textContent  = name + ' ' + emoji;
+  document.getElementById('mineMethod').textContent  = a.method;
+  document.getElementById('mineDiff').textContent    = a.diff;
+  document.getElementById('mineReward').textContent  = a.reward;
+  document.getElementById('arenaTitle').textContent  = name + ' 채굴 대기';
+  document.getElementById('arenaStatus').textContent = '채굴 시작 버튼을 누르세요';
+  if (miningActive) { stopMining(); }
+  mineProgress = 0;
+  updateMineUI();
+}
+
+function initCanvas() {
+  canvas = document.getElementById('miningCanvas');
+  if (!canvas) return;
+  const wrap = canvas.parentElement;
+  canvas.width  = wrap.clientWidth  || 600;
+  canvas.height = wrap.clientHeight || 360;
+  ctx = canvas.getContext('2d');
+  drawIdle();
+}
+
+function drawIdle() {
+  if (!ctx) return;
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // subtle grid
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < canvas.width; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+  for (let y = 0; y < canvas.height; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+  // center emoji
+  ctx.font = '64px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(currentAnimal.emoji, canvas.width/2, canvas.height/2 + 16);
+  ctx.font = '500 13px "Space Mono", monospace';
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)';
+  ctx.fillText('채굴 대기 중...', canvas.width/2, canvas.height/2 + 52);
+}
+
+/* ── particle system ── */
+function spawnParticle(x, y, color) {
+  particles.push({
+    x, y,
+    vx: (Math.random()-0.5)*3,
+    vy: -(Math.random()*3+1),
+    life: 1,
+    decay: Math.random()*0.02+0.015,
+    size: Math.random()*6+3,
+    color,
+  });
+}
+
+function updateParticles() {
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.06; // gravity
+    p.life -= p.decay;
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+/* ── draw functions per animal ── */
+function drawDog(t) {
+  const w = canvas.width, h = canvas.height;
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  ctx.clearRect(0,0,w,h);
+
+  // moving ground line
+  ctx.strokeStyle = isDark ? 'rgba(255,107,53,0.15)' : 'rgba(255,107,53,0.25)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    const lx = ((t*3 + i*(w/7)) % w);
+    ctx.beginPath(); ctx.moveTo(lx,h-30); ctx.lineTo(lx-w/7,h-30); ctx.stroke();
+  }
+
+  // pet running
+  petX += petDir * 2.8;
+  if (petX > w - 40) petDir = -1;
+  if (petX < 40) petDir = 1;
+  petBob = Math.sin(t * 0.2) * 8;
+
+  // shadow
+  ctx.fillStyle = isDark ? 'rgba(255,107,53,0.12)' : 'rgba(255,107,53,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(petX, h-22, 22, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.font = petDir === -1 ? '52px serif' : '52px serif';
+  ctx.save();
+  if (petDir === -1) { ctx.scale(-1,1); ctx.fillText(currentAnimal.emoji, -petX, h - 30 + petBob); }
+  else               { ctx.fillText(currentAnimal.emoji, petX - 26, h - 30 + petBob); }
+  ctx.restore();
+
+  // bone particles
+  if (Math.random() < 0.08) spawnParticle(petX, h-60+petBob, '#ff6b35');
+  updateParticles(); drawParticles();
+
+  // speed lines
+  ctx.strokeStyle = isDark ? 'rgba(255,107,53,0.2)' : 'rgba(255,107,53,0.3)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 4; i++) {
+    const lx = petX - petDir * (40 + i*18);
+    const ly = h - 52 + petBob + (i%2===0 ? -6 : 6);
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx - petDir*14, ly); ctx.stroke();
+  }
+}
+
+function drawCat(t) {
+  const w = canvas.width, h = canvas.height;
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  ctx.clearRect(0,0,w,h);
+
+  // floating orbs (cat magic)
+  for (let i = 0; i < 5; i++) {
+    const ox = w*0.2 + i*(w*0.15) + Math.sin(t*0.05+i)*20;
+    const oy = h*0.3 + Math.cos(t*0.04+i*1.2)*30;
+    const r = 6+i*3;
+    const grd = ctx.createRadialGradient(ox,oy,0,ox,oy,r);
+    grd.addColorStop(0, 'rgba(124,58,237,0.6)');
+    grd.addColorStop(1, 'rgba(124,58,237,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(ox,oy,r,0,Math.PI*2); ctx.fill();
+  }
+
+  // sitting cat, subtle bob
+  const bob = Math.sin(t*0.07)*4;
+  const shadow_scale = 0.9 + Math.sin(t*0.07)*0.1;
+  ctx.fillStyle = isDark ? 'rgba(124,58,237,0.15)' : 'rgba(124,58,237,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(w/2, h-22, 22*shadow_scale, 5, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.font = '64px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(currentAnimal.emoji, w/2, h-30+bob);
+
+  // sparkle particles
+  if (Math.random() < 0.12) {
+    const sx = w/2 + (Math.random()-0.5)*60;
+    const sy = h-60 + (Math.random()-0.5)*40 + bob;
+    spawnParticle(sx, sy, '#7c3aed');
+  }
+  updateParticles(); drawParticles();
+}
+
+function drawRabbit(t) {
+  const w = canvas.width, h = canvas.height;
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  ctx.clearRect(0,0,w,h);
+
+  // jump arc
+  const jumpT = (t % 60) / 60;
+  const jumpY = -Math.sin(jumpT * Math.PI) * 120;
+  const jumpX = w * 0.15 + jumpT * w * 0.7;
+
+  // trail
+  ctx.strokeStyle = isDark ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.3)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4,8]);
+  ctx.beginPath();
+  for (let i = 0; i <= 40; i++) {
+    const ti = i/40;
+    const xi = w*0.15 + ti*w*0.7;
+    const yi = h-50 - Math.sin(ti*Math.PI)*120;
+    i===0 ? ctx.moveTo(xi,yi) : ctx.lineTo(xi,yi);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // shadow (shrinks when jumping)
+  const shadowScale = 1 - Math.abs(jumpY)/150;
+  ctx.fillStyle = isDark ? 'rgba(16,185,129,0.12)' : 'rgba(16,185,129,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(jumpX, h-18, 18*shadowScale, 4*shadowScale, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.font = '52px serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(currentAnimal.emoji, jumpX-26, h-34+jumpY);
+
+  // landing particles
+  if (jumpT < 0.03 || jumpT > 0.97) {
+    for (let i = 0; i < 3; i++) spawnParticle(jumpX, h-40, '#10b981');
+  }
+  updateParticles(); drawParticles();
+}
+
+function drawHamster(t) {
+  const w = canvas.width, h = canvas.height;
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  ctx.clearRect(0,0,w,h);
+
+  // wheel
+  const cx = w/2, cy = h/2+10, R = 90;
+  const wheelAngle = t * 0.12;
+
+  // outer ring
+  ctx.strokeStyle = isDark ? 'rgba(245,158,11,0.3)' : 'rgba(245,158,11,0.5)';
+  ctx.lineWidth = 8;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.stroke();
+
+  // spokes
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = isDark ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.35)';
+  for (let i = 0; i < 8; i++) {
+    const angle = wheelAngle + i * Math.PI/4;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle)*10, cy + Math.sin(angle)*10);
+    ctx.lineTo(cx + Math.cos(angle)*R, cy + Math.sin(angle)*R);
+    ctx.stroke();
+  }
+
+  // inner glow
+  const grd = ctx.createRadialGradient(cx,cy,0,cx,cy,R);
+  grd.addColorStop(0, 'rgba(245,158,11,0.06)');
+  grd.addColorStop(1, 'rgba(245,158,11,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
+
+  // hamster on wheel bottom
+  const hamX = cx - 20;
+  const hamY = cy + R - 44;
+  const hamBob = Math.sin(t*0.3)*3;
+  ctx.font = '40px serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(currentAnimal.emoji, hamX, hamY + hamBob);
+
+  // gold particles (legendary!)
+  if (Math.random() < 0.18) {
+    const angle = Math.random() * Math.PI * 2;
+    spawnParticle(cx + Math.cos(angle)*R, cy + Math.sin(angle)*R, '#f59e0b');
+  }
+  updateParticles(); drawParticles();
+
+  // LEGENDARY label
+  ctx.font = '700 11px "Space Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = isDark ? 'rgba(245,158,11,0.6)' : 'rgba(180,120,0,0.7)';
+  ctx.fillText('⭐ LEGENDARY MINING ⭐', cx, 28);
+}
+
+/* ── mining loop ── */
+let frameT = 0;
+function miningLoop() {
+  if (!miningActive) return;
+  frameT++;
+
+  const name = currentAnimal.name;
+  if      (name === '강아지') drawDog(frameT);
+  else if (name === '고양이') drawCat(frameT);
+  else if (name === '토끼')   drawRabbit(frameT);
+  else if (name === '햄스터') drawHamster(frameT);
+
+  mineProgress = Math.min(100, mineProgress + currentAnimal.speed * 0.1);
+  updateMineUI();
+
+  if (mineProgress >= 100) {
+    completeMining();
+    return;
+  }
+  animId = requestAnimationFrame(miningLoop);
+}
+
+function updateMineUI() {
+  const p = Math.floor(mineProgress);
+  document.getElementById('mineProgress').textContent = p + '%';
+  const bar = document.getElementById('mineBar');
+  bar.style.width = p + '%';
+  bar.classList.toggle('full', p >= 100);
+}
+
+function startMining() {
+  if (miningActive) return;
+  if (!walletConnected) { showToast('먼저 지갑을 연결해주세요!'); return; }
+  miningActive = true;
+  mineProgress = 0;
+  particles = [];
+  document.getElementById('arenaTitle').textContent  = currentAnimal.name + ' 채굴 중...';
+  document.getElementById('arenaStatus').textContent = '⛏ 진행 중 · ' + currentAnimal.method;
+  showToast('⛏ ' + currentAnimal.name + ' 채굴이 시작되었습니다!');
+  miningLoop();
+}
+
+function stopMining() {
+  miningActive = false;
+  cancelAnimationFrame(animId);
+  document.getElementById('arenaTitle').textContent  = '채굴 일시 정지';
+  document.getElementById('arenaStatus').textContent = '재개하려면 채굴 시작을 누르세요';
+  drawIdle();
+}
+
+function completeMining() {
+  miningActive = false;
+  cancelAnimationFrame(animId);
+  mineProgress = 100;
+  updateMineUI();
+
+  const a = currentAnimal;
+  document.getElementById('arenaTitle').textContent  = '🎉 채굴 완료!';
+  document.getElementById('arenaStatus').textContent = a.reward + ' 획득!';
+  showToast('🏆 ' + a.reward + ' 획득! 지갑에 발행되었습니다.');
+
+  // add to claimed list
+  const total = parseInt(document.getElementById('mineTotal').textContent) + 1;
+  document.getElementById('mineTotal').textContent = total;
+
+  const list = document.getElementById('claimedList');
+  const empty = list.querySelector('.claimed-empty');
+  if (empty) empty.remove();
+
+  const colors = { Common:'#ff6b35', Rare:'#7c3aed', Epic:'#10b981', Legendary:'#f59e0b' };
+  const grade  = a.reward.replace(' NFT','');
+  const color  = colors[grade] || '#ff6b35';
+  const id     = '#' + String(Math.floor(Math.random()*9000+1000));
+
+  const item = document.createElement('div');
+  item.className = 'claimed-item';
+  item.innerHTML = `
+    <div class="claimed-icon">${a.emoji}</div>
+    <div class="claimed-info">
+      <div class="claimed-name">${a.name} Mining NFT ${id}</div>
+      <div class="claimed-id">${a.method} · ${new Date().toLocaleTimeString('ko-KR')}</div>
+    </div>
+    <div class="claimed-badge" style="background:${color}22;color:${color}">${grade}</div>`;
+  list.prepend(item);
+
+  // celebration draw
+  setTimeout(() => {
+    if (!ctx) return;
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.font = '80px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🏆', canvas.width/2, canvas.height/2 - 10);
+    ctx.font = '700 18px "Space Mono", monospace';
+    ctx.fillStyle = color;
+    ctx.fillText(a.reward + ' 획득!', canvas.width/2, canvas.height/2 + 42);
+    ctx.font = '13px "Space Mono", monospace';
+    ctx.fillStyle = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)';
+    ctx.fillText(id + ' · ' + a.name + ' · ' + a.method, canvas.width/2, canvas.height/2 + 72);
+  }, 200);
+
+  // reset after 3s
+  setTimeout(() => {
+    mineProgress = 0;
+    updateMineUI();
+    document.getElementById('arenaTitle').textContent  = '채굴 대기 중';
+    document.getElementById('arenaStatus').textContent = '다시 채굴하려면 시작을 누르세요';
+    drawIdle();
+  }, 3500);
+}
+
+/* ─────────────────────────────────────────
+  3.3 NFT 보유자 전용 기능
+  — NFT 보유 여부 확인 & 접근 제어
+───────────────────────────────────────── */
+// 보유 NFT 목록 (실제로는 체인에서 fetch)
+const userNFTs = [
+  { id:'#0023', name:"MOCHI's 2nd Birthday", type:'birthday', emoji:'🎂' },
+  { id:'#0001', name:'Adoption Day 2022',     type:'adoption', emoji:'🏠' },
+  { id:'#0007', name:'Golden Pom #001',        type:'limited',  emoji:'✨' },
+];
+
+function hasNFT()  { return walletConnected && userNFTs.length > 0; }
+function hasSBT()  { return walletConnected; }
+function nftCount(){ return userNFTs.length; }
+
+// 보유자 전용 페이지 진입 시 권한 체크
+const _origShowPage = window.showPage || function(){};
+function showPage(id) {
+  // holder 페이지는 NFT 보유 확인
+  if (id === 'holder' && !hasNFT()) {
+    showToast('⚠️ NFT 보유자만 접근할 수 있습니다.');
+    showAccessDeniedOverlay();
+    return;
+  }
+  // mining 페이지는 SBT 보유 확인
+  if (id === 'mining' && !hasSBT()) {
+    showToast('⚠️ SBT 보유자만 채굴할 수 있습니다.');
+    return;
+  }
+  const PAGES = ['home','register','mypage','holder','mining'];
+  PAGES.forEach(p => {
+    document.getElementById('page-'+p).classList.remove('active');
+    document.getElementById('nav-'+p).classList.remove('active');
+  });
+  document.getElementById('page-'+id).classList.add('active');
+  document.getElementById('nav-'+id).classList.add('active');
+  window.scrollTo(0,0);
+  if (id === 'mining') { setTimeout(initCanvas, 80); }
+  // 접근 시 보유자 배너 업데이트
+  if (id === 'holder') { refreshHolderBanner(); }
+}
+
+function showAccessDeniedOverlay() {
+  // 기존 오버레이 제거
+  const old = document.getElementById('accessDeniedOverlay');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'accessDeniedOverlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:350;
+    background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);
+    display:flex;align-items:center;justify-content:center;
+    animation:modal-in .3s ease;
+  `;
+  overlay.innerHTML = `
+    <div style="
+      background:var(--card);border:1px solid var(--border);
+      padding:48px 40px;max-width:420px;width:90%;text-align:center;position:relative;
+    ">
+      <button onclick="document.getElementById('accessDeniedOverlay').remove()"
+        style="position:absolute;top:14px;right:14px;background:none;border:none;
+               color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
+      <div style="font-size:56px;margin-bottom:16px;">🔒</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;
+                  color:var(--accent);margin-bottom:8px;">접근 제한</div>
+      <p style="color:var(--muted);font-size:14px;line-height:1.7;margin-bottom:28px;">
+        이 페이지는 <strong style="color:var(--text)">NFT 보유자 전용</strong>입니다.<br>
+        반려동물을 등록하고 NFT를 발행하면<br>보유자 전용 기능을 이용할 수 있습니다.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <button onclick="document.getElementById('accessDeniedOverlay').remove();showPage('register');"
+          style="padding:14px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;
+                 text-transform:uppercase;background:var(--accent);color:#fff;border:none;cursor:pointer;
+                 clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);">
+          🐾 반려동물 등록하기
+        </button>
+        <button onclick="document.getElementById('accessDeniedOverlay').remove();connectWallet();"
+          style="padding:14px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;
+                 text-transform:uppercase;background:transparent;color:var(--muted);
+                 border:1px solid var(--border);cursor:pointer;">
+          🦊 지갑 먼저 연결
+        </button>
+      </div>
+      <div style="margin-top:20px;padding:12px 14px;
+                  background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);
+                  font-family:'Space Mono',monospace;font-size:9px;color:var(--accent2);
+                  letter-spacing:1px;text-align:left;">
+        보유자 전용 기능: 굿즈 제작 · HD 이미지 다운로드 · NFT 채굴 · 프리미엄 콘텐츠
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function refreshHolderBanner() {
+  const count = nftCount();
+  const el = document.querySelector('.gate-count');
+  if (el) el.textContent = count;
+  // 접근 권한 매트릭스 동적 업데이트
+  updateAccessMatrix(count);
+}
+
+function updateAccessMatrix(count) {
+  const rows = document.querySelectorAll('.access-row');
+  const requirements = [
+    { min:1,  feature:'굿즈 제작' },
+    { min:1,  feature:'HD 이미지' },
+    { min:1,  feature:'NFT 채굴' },
+    { min:5,  feature:'프리미엄 NFT' },
+    { min:99, feature:'병원 연동' }, // 준비 중
+  ];
+  rows.forEach((row, i) => {
+    if (i >= requirements.length) return;
+    const pill = row.querySelector('.access-pill');
+    if (!pill) return;
+    const req = requirements[i];
+    if (i === 4) { // 병원 연동 — 준비 중 고정
+      pill.className = 'access-pill pill-locked';
+      pill.textContent = '준비 중';
+    } else if (count >= req.min) {
+      pill.className = 'access-pill pill-open';
+      pill.textContent = '✓ 접근 가능';
+    } else {
+      const need = req.min - count;
+      pill.className = 'access-pill pill-locked';
+      pill.textContent = `🔒 NFT ${need}개 더 필요`;
+    }
+  });
+}
+
+/* ─────────────────────────────────────────
+  3.4 굿즈 연결 (개념 구현 완성)
+  — NFT 기반 이미지 + 굿즈 미리보기
+───────────────────────────────────────── */
+// 굿즈 탭 접근 권한 체크
+function switchTab(id, el) {
+  // 굿즈/다운로드 탭은 NFT 보유 확인
+  if ((id === 'goods' || id === 'download') && !hasNFT()) {
+    showToast('⚠️ NFT 보유자만 이용할 수 있습니다.');
+    showAccessDeniedOverlay();
+    return;
+  }
+  document.querySelectorAll('.holder-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.holder-tab-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+
+  if (id === 'goods') loadGoodsNFTImages();
+  if (id === 'download') loadDownloadItems();
+}
+
+// NFT 기반 굿즈 이미지 동적 로드
+function loadGoodsNFTImages() {
+  const row = document.getElementById('goodsImgRow');
+  if (!row) return;
+  // 기존 NFT 썸네일 제거 후 재생성 (중복 방지)
+  const existing = row.querySelectorAll('.goods-img-thumb');
+  existing.forEach(e => e.remove());
+
+  const addBtn = row.querySelector('.goods-add-img');
+  userNFTs.forEach((nft, i) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'goods-img-thumb' + (i === 0 ? ' sel-img' : '');
+    thumb.setAttribute('data-label', nft.name);
+    thumb.innerHTML = `<span style="font-size:26px">${nft.emoji}</span>`;
+    thumb.onclick = () => pickGoodsImg(thumb, nft.emoji, getBgForType(nft.type), null, nft.name + ' ' + nft.id);
+    row.insertBefore(thumb, addBtn);
+  });
+  // 첫 번째 자동 선택
+  if (userNFTs.length > 0) {
+    const first = userNFTs[0];
+    gs.imgEmoji  = first.emoji;
+    gs.imgBg     = getBgForType(first.type);
+    gs.imgSrc    = null;
+    gs.imgLabel  = first.name + ' ' + first.id;
+    document.getElementById('selImgLabel').textContent = gs.imgLabel;
+    updateGoodsPreview();
+  }
+}
+
+function getBgForType(type) {
+  const bgs = {
+    birthday: 'linear-gradient(135deg,#1a1226,#2d1f3d)',
+    adoption: 'linear-gradient(135deg,#0a1628,#1a2f4a)',
+    limited:  'linear-gradient(135deg,#1a0f0a,#3d1a0a)',
+  };
+  return bgs[type] || 'var(--card)';
+}
+
+// 다운로드 탭 — NFT 기반 동적 렌더
+function loadDownloadItems() {
+  // 보유 NFT 기반으로 잠금/해제 상태 업데이트 (이미 HTML에 있으므로 상태만 갱신)
+  const dlCards = document.querySelectorAll('.dl-card');
+  dlCards.forEach((card, i) => {
+    const lock = card.querySelector('.dl-lock');
+    if (lock) {
+      if (i < userNFTs.length) {
+        // 보유 NFT 있음 → 잠금 해제
+        lock.remove();
+        card.style.opacity = '1';
+      }
+    }
+  });
+}
+
+// 굿즈 주문 NFT 선택 UI 강화 — 주문 시 NFT 소모 확인
+function openOrderModal() {
+  if (!walletConnected) { showToast('먼저 지갑을 연결해주세요!'); return; }
+  if (!hasNFT())        { showToast('⚠️ 주문하려면 NFT가 필요합니다.'); return; }
+  document.getElementById('orderModal').classList.add('open');
+}
+
+/* ─────────────────────────────────────────
+  INIT on load
+───────────────────────────────────────── */
+window.addEventListener('resize', () => { if (canvas) initCanvas(); });
+document.addEventListener('DOMContentLoaded', () => {
+  updateGoodsPreview();
+  // 모달 오버레이 클릭 시 닫기
+  document.querySelectorAll('.modal-overlay').forEach(o => {
+    o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+  });
+});
+</script>
