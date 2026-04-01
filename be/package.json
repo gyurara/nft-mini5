@@ -1,0 +1,10 @@
+{
+  "name": "nft-mini5-service-logic",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Service-logic layer for the pet NFT project",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --test && find logic/src logic/test -name '*.js' -print0 | xargs -0 -n1 node --check"
+  }
+}
