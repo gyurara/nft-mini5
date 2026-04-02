@@ -8,7 +8,7 @@ async function request(path, options = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.message || '¿äÃ»ÀÌ ½ÇÆÐÇß¾î¿ä.');
+    const err = new Error(data.message || 'ï¿½ï¿½Ã»ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ß¾ï¿½ï¿½.');
     err.code = data.code;
     err.status = res.status;
     throw err;
@@ -19,6 +19,12 @@ async function request(path, options = {}) {
 export const api = {
   registerPet(input) {
     return request('/register', { method: 'POST', body: JSON.stringify(input) });
+  },
+  syncSbt(input) {
+    return request('/sync-sbt', { method: 'POST', body: JSON.stringify(input) });
+  },
+  syncNft(input) {
+    return request('/sync-nft', { method: 'POST', body: JSON.stringify(input) });
   },
   issueSbt(account) {
     return request('/issue-sbt', { method: 'POST', body: JSON.stringify({ account }) });

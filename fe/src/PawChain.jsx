@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "./api";
+import {
+  WEB3_NETWORK_LABEL,
+  connectWalletSession,
+  getConnectedWalletAccount,
+  mintMemoryNftOnChain,
+  mintPetSbtOnChain,
+} from "./web3";
 
 /* ─── CSS ─── */
 const css = `
@@ -868,6 +875,8 @@ function RegisterPage({ walletConnected, walletAddr, showToast, showPage, onProf
   const [petAdopt, setPetAdopt] = useState('');
   const [previewImgSrc, setPreviewImgSrc] = useState(null);
   const [uploadDone, setUploadDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [minting, setMinting] = useState(false);
 
   const handleFile = e => {
     const file = e.target.files[0]; if(!file) return;
@@ -875,37 +884,81 @@ function RegisterPage({ walletConnected, walletAddr, showToast, showPage, onProf
     r.onload = ev => { setPreviewImgSrc(ev.target.result); setUploadDone(true); };
     r.readAsDataURL(file);
   };
+
+  const buildPetPayload = useCallback(() => {
+    if (!walletConnected || !walletAddr) {
+      throw new Error('먼저 지갑을 연결해주세요!');
+    }
+
+    if (!petName || !petType || !petBirth) {
+      throw new Error('이름, 종, 생일을 입력해주세요.');
+    }
+
+    return {
+      account: walletAddr,
+      name: petName,
+      species: petType || petBreed || 'pet',
+      birthDate: petBirth,
+      image: previewImgSrc || undefined,
+    };
+  }, [walletAddr, walletConnected, petBirth, petBreed, petName, petType, previewImgSrc]);
+
+  const persistPetProfile = useCallback(async () => {
+    const payload = buildPetPayload();
+    await api.registerPet(payload);
+    return payload;
+  }, [buildPetPayload]);
+
   const submitRegister = async () => {
-    if (!walletConnected || !walletAddr) { showToast('먼저 지갑을 연결해주세요!'); return; }
-    if (!petName || !petType || !petBirth) { showToast('이름, 종, 생일을 입력해주세요.'); return; }
     try {
-      await api.registerPet({
-        account: walletAddr,
-        name: petName,
-        species: petType || petBreed || 'pet',
-        birthDate: petBirth,
-        image: previewImgSrc || undefined,
-      });
+      setSubmitting(true);
+      await persistPetProfile();
       showToast('등록이 완료되었습니다.');
       onProfileChanged?.();
       showPage('mypage');
     } catch (err) {
       console.error(err);
       showToast(err?.message || '등록에 실패했어요.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const mintSBT = async () => {
     if (!walletConnected || !walletAddr) { showToast('먼저 지갑을 연결해주세요!'); return; }
     try {
-      showToast('SBT를 발급하고 있습니다...');
-      await api.issueSbt(walletAddr);
-      showToast('✅ SBT 발급 완료!');
+      setMinting(true);
+      showToast('등록 정보를 저장하고 있습니다...');
+      const petPayload = await persistPetProfile();
+      const currentProfile = await api.getMyPage(walletAddr).catch(() => null);
+
+      if (currentProfile?.holdings?.hasSbt) {
+        throw new Error('이미 SBT를 보유하고 있습니다.');
+      }
+
+      showToast(`${WEB3_NETWORK_LABEL}에서 SBT 발급을 요청했습니다...`);
+      const result = await mintPetSbtOnChain({
+        account: walletAddr,
+        pet: petPayload,
+      });
+
+      await api.syncSbt({
+        account: walletAddr,
+        tokenId: result.tokenId,
+        transactionHash: result.transactionHash,
+        tokenUri: result.tokenUri,
+        metadata: result.metadata,
+        mintedAt: result.mintedAt,
+      });
+
+      showToast('✅ SBT 온체인 발급 및 저장 완료!');
       onProfileChanged?.();
       showPage('mypage');
     } catch (err) {
       console.error(err);
       showToast(err?.message || 'SBT 발급에 실패했습니다.');
+    } finally {
+      setMinting(false);
     }
   };
   const previewName = petName ? petName.toUpperCase() : '반려동물 이름';
@@ -958,8 +1011,12 @@ function RegisterPage({ walletConnected, walletAddr, showToast, showPage, onProf
             <label className="pc-form-label">보호자 지갑 주소</label>
             <input className="pc-form-input" value={walletAddr || ''} readOnly placeholder="MetaMask 연결 시 자동 입력" style={{color:'var(--muted)'}} />
           </div>
-          <button className="pc-btn-full" onClick={submitRegister}>📥 등록 저장하기</button>
-          <button className="pc-btn-full" style={{marginTop:10}} onClick={mintSBT}>🔒 SBT 발급하기</button>
+          <button className="pc-btn-full" onClick={submitRegister} disabled={submitting || minting}>
+            {submitting ? '저장 중...' : '📥 등록 저장하기'}
+          </button>
+          <button className="pc-btn-full" style={{marginTop:10}} onClick={mintSBT} disabled={submitting || minting}>
+            {minting ? 'SBT 발급 중...' : '🔒 SBT 발급하기'}
+          </button>
         </div>
       </div>
       <div className="pc-preview-section">
@@ -976,7 +1033,7 @@ function RegisterPage({ walletConnected, walletAddr, showToast, showPage, onProf
             <div className="pc-preview-row"><span className="pc-preview-row-key">토큰 유형</span><span style={{color:'var(--accent2)'}}>SBT (양도 불가)</span></div>
             <div className="pc-preview-row"><span className="pc-preview-row-key">저장소</span><span style={{color:'var(--accent3)'}}>IPFS</span></div>
           </div>
-          <div className="pc-chain-badge"><div className="pc-chain-dot"/><div className="pc-chain-text">Ethereum Mainnet · ERC-5114</div></div>
+          <div className="pc-chain-badge"><div className="pc-chain-dot"/><div className="pc-chain-text">{WEB3_NETWORK_LABEL} · ERC-721 SBT</div></div>
         </div>
       </div>
     </div>
@@ -1272,11 +1329,22 @@ function MyPageNew({ walletConnected, walletAddr, refreshKey, showPage, showToas
 
   const handleIssueSbt = async () => {
     if (!walletConnected || !walletAddr) { showToast('먼저 지갑을 연결해주세요!'); return; }
+    if (!pet) { showToast('먼저 반려동물을 등록해주세요.'); return; }
+    if (holdings.hasSbt) { showToast('이미 SBT를 보유하고 있습니다.'); return; }
     try {
       setMinting(true);
-      await api.issueSbt(walletAddr);
-      showToast('SBT 발급 완료!');
-      refreshProfile();
+      showToast(`${WEB3_NETWORK_LABEL}에서 SBT 발급을 요청했습니다...`);
+      const result = await mintPetSbtOnChain({ account: walletAddr, pet });
+      await api.syncSbt({
+        account: walletAddr,
+        tokenId: result.tokenId,
+        transactionHash: result.transactionHash,
+        tokenUri: result.tokenUri,
+        metadata: result.metadata,
+        mintedAt: result.mintedAt,
+      });
+      showToast('SBT 온체인 발급 완료!');
+      await refreshProfile();
     } catch (err) {
       console.error(err);
       showToast(err?.message || 'SBT 발급 실패');
@@ -1287,11 +1355,28 @@ function MyPageNew({ walletConnected, walletAddr, refreshKey, showPage, showToas
 
   const handleIssueNft = async () => {
     if (!walletConnected || !walletAddr) { showToast('먼저 지갑을 연결해주세요!'); return; }
+    if (!pet) { showToast('먼저 반려동물을 등록해주세요.'); return; }
+    if (!sbt?.tokenId) { showToast('먼저 SBT를 발급해주세요.'); return; }
     try {
       setMinting(true);
-      await api.issueNft(walletAddr);
-      showToast('NFT 발행 완료!');
-      refreshProfile();
+      showToast(`${WEB3_NETWORK_LABEL}에서 NFT 발행을 요청했습니다...`);
+      const result = await mintMemoryNftOnChain({
+        account: walletAddr,
+        pet,
+        petSbtTokenId: sbt.tokenId,
+      });
+      await api.syncNft({
+        account: walletAddr,
+        tokenId: result.tokenId,
+        petSbtTokenId: result.petSbtTokenId,
+        transactionHash: result.transactionHash,
+        tokenUri: result.tokenUri,
+        metadata: result.metadata,
+        paidWei: result.paidWei,
+        mintedAt: result.mintedAt,
+      });
+      showToast('NFT 온체인 발행 완료!');
+      await refreshProfile();
     } catch (err) {
       console.error(err);
       showToast(err?.message || 'NFT 발행 실패');
@@ -1330,7 +1415,7 @@ function MyPageNew({ walletConnected, walletAddr, refreshKey, showPage, showToas
           <div className="pc-pet-main-name">{pet?.name || '아직 등록된 반려동물이 없어요'}</div>
           <div className="pc-pet-main-breed">{pet?.species || '종 / 품종을 등록해주세요'}</div>
           <div className="pc-info-grid">
-            {[['생년월일', pet?.birthDate ? pet.birthDate.replace(/-/g,'.') : '—'],['입양일','—'],['NFT 보유', `${holdings.nftBalance || 0}개`, 'var(--accent)'],['네트워크','Ethereum']].map(([k,v,c]) => (
+            {[['생년월일', pet?.birthDate ? pet.birthDate.replace(/-/g,'.') : '—'],['입양일','—'],['NFT 보유', `${holdings.nftBalance || 0}개`, 'var(--accent)'],['네트워크',WEB3_NETWORK_LABEL]].map(([k,v,c]) => (
               <div key={k} className="pc-info-cell">
                 <div className="pc-info-cell-key">{k}</div>
                 <div className="pc-info-cell-val" style={c?{color:c}:{}}>{v}</div>
@@ -1408,23 +1493,62 @@ export default function PawChain() {
   const bumpProfileRefresh = useCallback(() => setProfileRefreshKey(k => k + 1), []);
 
   const connectWallet = useCallback(async () => {
-    if (walletConnected) return;
     try {
-      if (window.ethereum?.request) {
-        const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        setWalletAddr(account);
-      } else {
-        // fallback for no provider (dev/demo)
-        setWalletAddr('0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b');
-      }
+      const { account } = await connectWalletSession();
+      setWalletAddr(account);
       setWalletConnected(true);
-      showToast('지갑이 연결되었습니다!');
+      showToast(`${WEB3_NETWORK_LABEL} 지갑이 연결되었습니다!`);
       bumpProfileRefresh();
     } catch (err) {
       console.error(err);
       showToast(err?.message || '지갑 연결에 실패했습니다.');
     }
-  }, [walletConnected, bumpProfileRefresh]);
+  }, [bumpProfileRefresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateWallet = async () => {
+      if (!window.ethereum?.request) {
+        return;
+      }
+
+      try {
+        const account = await getConnectedWalletAccount();
+        if (!cancelled && account) {
+          setWalletAddr(account);
+          setWalletConnected(true);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    const handleAccountsChanged = accounts => {
+      const account = accounts?.[0] || '';
+      setWalletAddr(account);
+      setWalletConnected(Boolean(account));
+      if (account) {
+        bumpProfileRefresh();
+      }
+    };
+
+    const handleChainChanged = () => {
+      bumpProfileRefresh();
+    };
+
+    hydrateWallet();
+
+    window.ethereum?.on?.('accountsChanged', handleAccountsChanged);
+    window.ethereum?.on?.('chainChanged', handleChainChanged);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(toastTimer.current);
+      window.ethereum?.removeListener?.('accountsChanged', handleAccountsChanged);
+      window.ethereum?.removeListener?.('chainChanged', handleChainChanged);
+    };
+  }, [bumpProfileRefresh]);
 
   const showPage = (id, sub) => {
     if (id === 'holder' && !walletConnected) { showToast('⚠️ NFT 보유자만 접근할 수 있습니다.'); setAccessDenied(true); return; }
