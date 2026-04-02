@@ -20,7 +20,7 @@ function createTokenUriFactory(baseUrl = 'https://mock.example.com/pet') {
         metadata: {
           name: `Pet #${tokenId}`,
           description: kind === 'sbt' ? '반려동물 신원 SBT' : '반려동물 NFT',
-          image: 'https://placekitten.com/400/400',
+          image: pet.image || 'https://placekitten.com/400/400',
           attributes: [
             { trait_type: '종', value: pet.species },
             { trait_type: '생년월일', value: pet.birthDate },

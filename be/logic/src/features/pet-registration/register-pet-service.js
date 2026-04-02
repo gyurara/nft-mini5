@@ -15,6 +15,7 @@ function createRegisterPetService({ petProfileRepository }) {
           name: pet.name,
           species: pet.species,
           birthDate: pet.birthDate,
+          image: pet.image || existing?.pet?.image || null,
           createdAt: existing?.pet?.createdAt || now,
           updatedAt: now,
         },
