@@ -34,5 +34,9 @@ Thumbs.db
 *.swp
 *.swo
 
-# Local OMX runtime state
+# Local agent / runtime state
+.codex
 .omx/
+
+# Gradle local cache
+.gradle/
