@@ -1,15 +1,16 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { createPetServiceApp, InMemoryPetProfileRepository, AppError } = require('./logic/src');
+const { createPetServiceApp, AppError } = require('./logic/src');
+const { MySqlPetProfileRepository, createMySqlPool } = require('./logic/src/repositories/mysql-pet-profile-repository');
 
 const PORT = process.env.PORT || 4000;
-const repository = new InMemoryPetProfileRepository();
 const tokenStateStore = new Map();
 
 const sessionGateway = {
   async assertConnected(account) {
     if (!account) {
-      throw new AppError('ACCOUNT_REQUIRED', 'Áö°© °èÁ¤ÀÌ ÇÊ¿äÇÕ´Ï´Ù.', { account });
+      throw new AppError('ACCOUNT_REQUIRED', 'ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ê¿ï¿½ï¿½Õ´Ï´ï¿½.', { account });
     }
   },
   async getTokenState(account) {
@@ -42,12 +43,6 @@ const contractGateway = {
     return { hash: `0xnft${tokenId}`, tokenId, eventName: 'NFTMinted' };
   },
 };
-
-const service = createPetServiceApp({
-  sessionGateway,
-  contractGateway,
-  petProfileRepository: repository,
-});
 
 const app = express();
 app.use(cors());
@@ -118,11 +113,29 @@ function handleError(error, res) {
   const status = error instanceof AppError ? 400 : 500;
   res.status(status).json({
     code: error.code || 'INTERNAL_ERROR',
-    message: error.message || '¼­¹ö ¿À·ù°¡ ¹ß»ýÇß½À´Ï´Ù.',
+    message: error.message || 'ì„œë²„ ì˜¤ë¥˜ê°€ ë°œìƒí–ˆìŠµë‹ˆë‹¤.',
     meta: error.meta || null,
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`API server listening on http://localhost:${PORT}`);
+let service;
+
+async function main() {
+  const pool = await createMySqlPool();
+  const repository = new MySqlPetProfileRepository(pool);
+
+  service = createPetServiceApp({
+    sessionGateway,
+    contractGateway,
+    petProfileRepository: repository,
+  });
+
+  app.listen(PORT, () => {
+    console.log(`API server listening on http://localhost:${PORT}`);
+  });
+}
+
+main().catch((err) => {
+  console.error('ì„œë²„ ì‹œìž‘ ì‹¤íŒ¨:', err);
+  process.exit(1);
 });

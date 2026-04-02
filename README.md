@@ -14,7 +14,8 @@
 ## 주요 구성
 
 - `bc/`: 반려동물 SBT 및 기념 NFT 스마트 컨트랙트
-- `be/`: 반려동물 등록, 발급 조건 검사, 상태 조회를 담당하는 백엔드 로직
+- `be/`: 반려동물 등록, 발급 조건 검사, 상태 조회를 담당하는 Node.js 백엔드 (포트 4000)
+- `backend/`: Spring Boot 기반 백엔드 — pets/굿즈 주문 REST API 제공 (포트 8080)
 - `fe/`: 사용자가 지갑을 연결하고 SBT/NFT 발급을 진행하는 프론트엔드
 
 ## 실행 전 준비
@@ -38,13 +39,62 @@ npm install
 npx vite
 ```
 
-### 백엔드 실행
+### 백엔드 실행 — Node.js (`be/`, 포트 4000)
+
+MySQL 연동이 필요합니다. 서버 시작 시 `pawchain` 데이터베이스와 테이블이 자동으로 생성됩니다.
+
+1. 환경변수 파일 생성
+
+```bash
+cp be/.env.example be/.env
+```
+
+2. `be/.env` 파일을 열어 MySQL 비밀번호 입력
+
+```
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=비밀번호
+DB_NAME=pawchain
+```
+
+3. 서버 실행
 
 ```bash
 cd be
 npm install
 npm start
 ```
+
+### 백엔드 실행 — Spring Boot (`backend/`, 포트 8080)
+
+MySQL 연동이 필요합니다. 서버 시작 시 `pawchain` 데이터베이스와 테이블이 자동으로 생성됩니다.
+
+`backend/src/main/resources/application.properties`에서 비밀번호를 직접 설정하거나, 환경변수로 전달합니다.
+
+```properties
+spring.datasource.password=비밀번호
+```
+
+**Gradle이 설치된 경우**
+
+```bash
+cd backend
+gradle bootRun
+```
+
+**Gradle Wrapper를 생성해서 실행 (권장)**
+
+```bash
+cd backend
+gradle wrapper
+./gradlew bootRun
+```
+
+**VS Code Spring Boot Extension 사용**
+
+[PawchainApplication.java](backend/src/main/java/com/example/pawchain/PawchainApplication.java) 파일을 열고 상단 `Run` 버튼 클릭
 
 ## 백엔드 검증
 
