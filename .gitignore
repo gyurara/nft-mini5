@@ -11,6 +11,7 @@ dist/
 build/
 out/
 coverage/
+.gradle/
 
 # Solidity / EVM tool outputs
 artifacts/
@@ -38,5 +39,5 @@ Thumbs.db
 .codex
 .omx/
 
-# Gradle local cache
-.gradle/
+# Local Codex metadata
+.codex
