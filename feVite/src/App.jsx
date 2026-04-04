@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ethers } from 'ethers';
+import { api, animalApi } from './api';
 
 /* ─────────────────────────── CSS ─────────────────────────── */
 const globalCSS = `
@@ -297,11 +298,34 @@ function validatePetInput(input) {
     account: requireNonEmptyString(input.account, 'account'),
     name: requireNonEmptyString(input.name, 'name'),
     species: requireNonEmptyString(input.species, 'species'),
+    registrationNo: input.registrationNo ? String(input.registrationNo).trim() : null,
     gender: input.gender || null,
     birthDate: input.birthDate || null,
     adoptDate: input.adoptDate,
     imageUrl: input.imageUrl || null,
   };
+}
+
+function formatBasicDateToInput(value) {
+  if (!value || !/^\d{8}$/.test(String(value))) return '';
+  const text = String(value);
+  return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`;
+}
+
+function mapAnimalTypeToSpecies(value) {
+  const normalized = String(value || '').trim();
+  if (['개', '강아지', '견'].includes(normalized)) return '강아지';
+  if (['고양이', '묘'].includes(normalized)) return '고양이';
+  if (normalized === '토끼') return '토끼';
+  if (normalized === '햄스터') return '햄스터';
+  return '기타';
+}
+
+function mapAnimalGender(value) {
+  const normalized = String(value || '').trim();
+  if (normalized === '수컷') return '남아';
+  if (normalized === '암컷') return '여아';
+  return '중성화';
 }
 
 // receipt.js
@@ -432,19 +456,37 @@ function createRegisterPetService({ petProfileRepository }) {
     async execute(input) {
       const pet = validatePetInput(input);
       const now = new Date().toISOString();
+      let apiRes = null;
+
+      try {
+        apiRes = await api.registerPet({
+          account: pet.account,
+          name: pet.name,
+          species: pet.species,
+          registrationNo: pet.registrationNo,
+          gender: pet.gender,
+          birthDate: pet.birthDate,
+          adoptDate: pet.adoptDate,
+          imageUrl: pet.imageUrl,
+        });
+      } catch (error) {
+        console.error('registerPet API 실패, 로컬 상태로 계속 진행합니다.', error);
+      }
+
       // 항상 새 반려동물로 추가 (기존 프로필 덮어쓰기 없음)
       const profile = {
         account: pet.account,
         pet: {
-          id: crypto.randomUUID(),
-          name: pet.name,
-          species: pet.species,
-          gender: pet.gender || null,
-          birthDate: pet.birthDate || null,
-          adoptDate: pet.adoptDate,
-          imageUrl: pet.imageUrl || null,
-          createdAt: now,
-          updatedAt: now,
+          id: apiRes?.pet?.id ?? apiRes?.petId ?? apiRes?.id ?? crypto.randomUUID(),
+          name: apiRes?.pet?.name ?? pet.name,
+          species: apiRes?.pet?.species ?? pet.species,
+          registrationNo: apiRes?.pet?.registrationNo ?? pet.registrationNo ?? null,
+          gender: apiRes?.pet?.gender ?? (pet.gender || null),
+          birthDate: apiRes?.pet?.birthDate ?? (pet.birthDate || null),
+          adoptDate: apiRes?.pet?.adoptDate ?? pet.adoptDate,
+          imageUrl: apiRes?.pet?.imageUrl ?? (pet.imageUrl || null),
+          createdAt: apiRes?.pet?.createdAt ?? apiRes?.createdAt ?? now,
+          updatedAt: apiRes?.pet?.updatedAt ?? apiRes?.updatedAt ?? now,
         },
         sbt: null,
         nfts: [],
@@ -925,8 +967,22 @@ function HomePage({ setPage, state }) {
 
 /* ─────────────────────────── REGISTER ─────────────────────────── */
 function RegisterPage({ state, registerPet, connectWallet, showToast, setPage }) {
-  const [form, setForm] = useState({ name: '', species: '강아지', gender: '남아', birthDate: '', adoptDate: '', imageUrl: null });
+  const [form, setForm] = useState({ name: '', species: '강아지', registrationNo: '', gender: '남아', birthDate: '', adoptDate: '', imageUrl: null });
   const [loading, setLoading] = useState(false);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResult, setLookupResult] = useState(null);
+  const [twoWayInfo, setTwoWayInfo] = useState(null);
+  const [lookupForm, setLookupForm] = useState({
+    organization: '0001',
+    loginType: '1',
+    userId: '',
+    userPassword: '',
+    loginTypeLevel: '1',
+    userName: '',
+    birthDate: '',
+    telecom: '0',
+    phoneNo: '',
+  });
   const EMOJI = { '강아지': '🐶', '고양이': '🐱', '토끼': '🐰', '햄스터': '🐹', '기타': '🐾' };
 
   const handleImage = (e) => {
@@ -950,6 +1006,55 @@ function RegisterPage({ state, registerPet, connectWallet, showToast, setPage })
     } finally { setLoading(false); }
   };
 
+  const applyLookupData = useCallback((data) => {
+    setLookupResult(data);
+    setForm(prev => ({
+      ...prev,
+      name: data?.commName || prev.name,
+      species: mapAnimalTypeToSpecies(data?.resType1 || data?.resKind),
+      registrationNo: data?.resRegNumber || prev.registrationNo,
+      gender: mapAnimalGender(data?.resGender),
+      birthDate: formatBasicDateToInput(data?.commBirthDate) || prev.birthDate,
+    }));
+  }, []);
+
+  const handleLookup = async (is2Way = false) => {
+    setLookupLoading(true);
+    try {
+      const payload = {
+        ...lookupForm,
+        phoneNo: lookupForm.phoneNo.replace(/\D/g, ''),
+        birthDate: lookupForm.birthDate.replace(/\D/g, ''),
+      };
+      if (is2Way && twoWayInfo) {
+        payload.is2Way = true;
+        payload.simpleAuth = '1';
+        payload.twoWayInfo = twoWayInfo;
+      }
+
+      const response = await animalApi.lookupRegistrationNumber(payload);
+
+      if (response?.result?.code === 'CF-03002' && response?.data?.continue2Way) {
+        setTwoWayInfo({
+          jobIndex: response.data.jobIndex,
+          threadIndex: response.data.threadIndex,
+          jti: response.data.jti,
+          twoWayTimestamp: response.data.twoWayTimestamp,
+        });
+        showToast('추가인증이 필요합니다. 간편인증 완료 후 확인 버튼을 눌러주세요.');
+        return;
+      }
+
+      setTwoWayInfo(null);
+      applyLookupData(response?.data);
+      showToast('동물등록번호 조회 결과를 입력폼에 반영했습니다.');
+    } catch (error) {
+      showToast(error.message, 'error');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
   return (
     <div className="page active">
       <div className="register-layout">
@@ -964,9 +1069,116 @@ function RegisterPage({ state, registerPet, connectWallet, showToast, setPage })
             </div>
           )}
 
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', padding:20, marginBottom:24 }}>
+            <div className="form-label" style={{ color:'var(--accent)', marginBottom:12 }}>동물등록번호 조회 API</div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">로그인 방식</label>
+                <select className="form-select" value={lookupForm.loginType} onChange={e => setLookupForm(f => ({ ...f, loginType: e.target.value }))}>
+                  <option value="1">아이디 로그인</option>
+                  <option value="5">간편인증 로그인</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">기관코드</label>
+                <input className="form-input" value={lookupForm.organization} readOnly />
+              </div>
+            </div>
+
+            {lookupForm.loginType === '1' ? (
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">아이디</label>
+                  <input className="form-input" value={lookupForm.userId} onChange={e => setLookupForm(f => ({ ...f, userId: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">비밀번호</label>
+                  <input type="password" className="form-input" value={lookupForm.userPassword} onChange={e => setLookupForm(f => ({ ...f, userPassword: e.target.value }))} />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">간편인증 구분</label>
+                    <select className="form-select" value={lookupForm.loginTypeLevel} onChange={e => setLookupForm(f => ({ ...f, loginTypeLevel: e.target.value }))}>
+                      <option value="1">카카오톡</option>
+                      <option value="3">삼성패스</option>
+                      <option value="4">KB모바일</option>
+                      <option value="5">통신사 PASS</option>
+                      <option value="6">네이버</option>
+                      <option value="7">신한인증서</option>
+                      <option value="10">NH인증서</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">이름</label>
+                    <input className="form-input" value={lookupForm.userName} onChange={e => setLookupForm(f => ({ ...f, userName: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">생년월일(yyyymmdd)</label>
+                    <input className="form-input" value={lookupForm.birthDate} maxLength={8} onChange={e => setLookupForm(f => ({ ...f, birthDate: e.target.value.replace(/\D/g, '').slice(0, 8) }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">전화번호</label>
+                    <input className="form-input" value={lookupForm.phoneNo} onChange={e => setLookupForm(f => ({ ...f, phoneNo: e.target.value.replace(/[^\d-]/g, '') }))} />
+                  </div>
+                </div>
+                {lookupForm.loginTypeLevel === '5' && (
+                  <div className="form-group">
+                    <label className="form-label">통신사</label>
+                    <select className="form-select" value={lookupForm.telecom} onChange={e => setLookupForm(f => ({ ...f, telecom: e.target.value }))}>
+                      <option value="0">SKT</option>
+                      <option value="1">KT</option>
+                      <option value="2">LG U+</option>
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div style={{ display:'flex', gap:8, marginTop:8 }}>
+              <button className="btn-mint" style={{ flex:1 }} onClick={() => handleLookup(false)} disabled={lookupLoading}>
+                {lookupLoading ? '조회 중...' : '조회해서 입력폼 채우기'}
+              </button>
+              {twoWayInfo && (
+                <button className="btn-outline" style={{ flex:1 }} onClick={() => handleLookup(true)} disabled={lookupLoading}>
+                  간편인증 완료 후 확인
+                </button>
+              )}
+            </div>
+
+            {lookupResult && (
+              <div style={{ marginTop:14, padding:14, background:'var(--card)', border:'1px solid var(--border)' }}>
+                <div className="form-label">조회 결과</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, fontSize:12 }}>
+                  <div>이름: {lookupResult.commName}</div>
+                  <div>등록번호: {lookupResult.resRegNumber}</div>
+                  <div>성별: {lookupResult.resGender}</div>
+                  <div>종류: {lookupResult.resType1}</div>
+                  <div>품종: {lookupResult.resKind}</div>
+                  <div>생년월일: {lookupResult.commBirthDate}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="form-group">
             <label className="form-label">반려동물 이름</label>
             <input className="form-input" placeholder="예: 뭉치" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">동물등록번호 <span style={{ color:'var(--muted)', fontWeight:300 }}>(Animal API용)</span></label>
+            <input
+              className="form-input"
+              placeholder="15자리 숫자 예: 410000000000001"
+              value={form.registrationNo}
+              maxLength={15}
+              onChange={e => setForm(f => ({ ...f, registrationNo: e.target.value.replace(/\D/g, '').slice(0, 15) }))}
+            />
           </div>
 
           <div className="form-row">
@@ -1046,6 +1258,10 @@ function RegisterPage({ state, registerPet, connectWallet, showToast, setPage })
               <div className="preview-row">
                 <span className="preview-row-key">태어난날</span>
                 <span>{form.birthDate || '—'}</span>
+              </div>
+              <div className="preview-row">
+                <span className="preview-row-key">동물등록번호</span>
+                <span>{form.registrationNo || '—'}</span>
               </div>
               <div className="preview-row">
                 <span className="preview-row-key">입양일</span>
@@ -1275,6 +1491,7 @@ function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectWallet, 
             <button className="btn-mint" onClick={() => setPage('register')}>지금 등록하기</button>
           </div>
         ) : (
+          <>
           <div className="mypage-grid">
             <div className="pet-card-main">
               <div className="pet-card-main-img">
@@ -1289,7 +1506,7 @@ function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectWallet, 
               <div className="info-grid">
                 <div className="info-cell"><div className="info-cell-key">태어난날</div><div className="info-cell-val">{profile.pet.birthDate || '—'}</div></div>
                 <div className="info-cell"><div className="info-cell-key">입양일</div><div className="info-cell-val">{profile.pet.adoptDate || '—'}</div></div>
-                <div className="info-cell"><div className="info-cell-key">성별</div><div className="info-cell-val">{profile.pet.gender || '—'}</div></div>
+                <div className="info-cell"><div className="info-cell-key">동물등록번호</div><div className="info-cell-val">{profile.pet.registrationNo || '—'}</div></div>
                 <div className="info-cell"><div className="info-cell-key">NFT 수량</div><div className="info-cell-val">{profile.nfts?.length || 0}개</div></div>
               </div>
               {profile.sbt && (
@@ -1355,6 +1572,7 @@ function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectWallet, 
               )}
             </div>
           </div>
+          </>
         )}
       </div>
 
