@@ -15,8 +15,8 @@
 
 - `bc/`: 반려동물 SBT 및 기념 NFT 스마트 컨트랙트
 - `be/`: 반려동물 등록, 발급 조건 검사, 상태 조회를 담당하는 Node.js 백엔드 (포트 4000)
-- `backend/`: Spring Boot 기반 백엔드 — pets/굿즈 주문 REST API 제공 (포트 8080)
-- `fe/`: 사용자가 지갑을 연결하고 SBT/NFT 발급을 진행하는 프론트엔드
+- `backend/`: Spring Boot 기반 Animal API 백엔드 — SBT/NFT/수의사 승인/진료기록 API 제공 (포트 8080)
+- `feVite/`: Vite 기반 프론트엔드 (구 CRA `fe/`는 더 이상 사용하지 않습니다)
 
 ## 실행 전 준비
 
@@ -31,13 +31,15 @@
 
 ### 프론트엔드 실행
 
-프론트엔드는 `fe` 디렉토리에서 **`npx vite`** 로 실행합니다.
+프론트엔드는 **`feVite`** 디렉토리에서 Vite로 실행합니다.
 
 ```bash
-cd fe
+cd feVite
 npm install
-npx vite
+npm run dev
 ```
+
+`.env` 설정 예시는 `feVite/.env.example`를 참고해 `VITE_` 접두어로 복사/수정하세요. `VITE_API_BASE_URL`은 Node API(`be/`), `VITE_ANIMAL_API_BASE_URL`은 Spring Animal API(`backend/`)를 가리킵니다. 개발 시 `npm run dev`는 `/api` 요청을 기본적으로 `http://localhost:4000`으로 프록시합니다.
 
 ### 백엔드 실행 — Node.js (`be/`, 포트 4000)
 
