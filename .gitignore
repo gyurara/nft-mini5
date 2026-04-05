@@ -41,3 +41,6 @@ Thumbs.db
 
 # Local Codex metadata
 .codex
+
+# Claude Code 로컬 설정
+.claude/
