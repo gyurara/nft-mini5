@@ -3,8 +3,38 @@ const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const { createPetServiceApp, AppError } = require('./logic/src');
 const { MySqlPetProfileRepository, createMySqlPool } = require('./logic/src/repositories/mysql-pet-profile-repository');
+
+// ─── AES-256-CBC 암호화 / 복호화 ──────────────────────────────────────────────
+// 키는 정확히 32바이트여야 함 (환경변수 AES_SECRET_KEY)
+function getAesKey() {
+  const raw = process.env.AES_SECRET_KEY || 'pawchain-aes-256-secret-key-32ch';
+  return Buffer.from(raw.padEnd(32, '0').slice(0, 32));
+}
+
+function encryptText(plainText) {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', getAesKey(), iv);
+  let encrypted = cipher.update(plainText, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+function decryptText(encryptedText) {
+  try {
+    const [ivHex, data] = encryptedText.split(':');
+    if (!ivHex || !data) return encryptedText; // 암호화되지 않은 기존 데이터 대비
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', getAesKey(), iv);
+    let decrypted = decipher.update(data, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (_) {
+    return encryptedText; // 복호화 실패 시 원본 반환 (기존 평문 데이터 호환)
+  }
+}
 
 const PORT = process.env.PORT || 4000;
 const SALT_ROUNDS = 10;
@@ -294,6 +324,78 @@ app.post('/api/issue-nft', async (req, res) => {
     const { account } = req.body || {};
     const result = await service.issueNft(account);
     res.json(result);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+// 온체인 SBT 민팅 완료 후 DB 동기화
+// Body: { account, tokenId, transactionHash, tokenUri, metadata, mintedAt }
+app.post('/api/sync-sbt', async (req, res) => {
+  try {
+    const { account, tokenId, transactionHash, tokenUri, metadata, mintedAt } = req.body || {};
+    if (!account || tokenId == null) {
+      return res.status(400).json({ code: 'INVALID_PARAMS', message: 'account, tokenId는 필수입니다.' });
+    }
+
+    const repository = new MySqlPetProfileRepository(dbPool);
+    const sbtData = { tokenId, transactionHash, tokenUri, metadata, mintedAt };
+    const profile = await repository.syncSbt(account.toLowerCase(), sbtData);
+
+    // 토큰 상태 갱신
+    const prev = tokenStateStore.get(account.toLowerCase()) || { hasSbt: false, nftBalance: 0 };
+    tokenStateStore.set(account.toLowerCase(), { ...prev, hasSbt: true });
+
+    res.json({ ok: true, sbt: sbtData, nftCount: profile.nftCount });
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+// 온체인 NFT 민팅 완료 후 DB 동기화 + nft_count 증가
+// Body: { account, tokenId, petSbtTokenId, transactionHash, tokenUri, metadata, paidWei, mintedAt }
+app.post('/api/sync-nft', async (req, res) => {
+  try {
+    const { account, tokenId, petSbtTokenId, transactionHash, tokenUri, metadata, paidWei, mintedAt } = req.body || {};
+    if (!account || tokenId == null) {
+      return res.status(400).json({ code: 'INVALID_PARAMS', message: 'account, tokenId는 필수입니다.' });
+    }
+
+    const repository = new MySqlPetProfileRepository(dbPool);
+    const nftData = { tokenId, petSbtTokenId, transactionHash, tokenUri, metadata, paidWei, mintedAt };
+    const profile = await repository.syncNft(account.toLowerCase(), nftData);
+
+    // 토큰 상태 갱신
+    const prev = tokenStateStore.get(account.toLowerCase()) || { hasSbt: false, nftBalance: 0 };
+    const nftBalance = profile.nftCount;
+    tokenStateStore.set(account.toLowerCase(), { ...prev, hasSbt: true, hasNft: nftBalance > 0, nftBalance });
+
+    res.json({ ok: true, nft: nftData, nftCount: profile.nftCount });
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+// NFT 할인권 교환 (굿즈 주문 시 nft_count 차감)
+// Body: { account }
+app.post('/api/use-nft-coupon', async (req, res) => {
+  try {
+    const { account } = req.body || {};
+    if (!account) {
+      return res.status(400).json({ code: 'INVALID_PARAMS', message: 'account는 필수입니다.' });
+    }
+
+    const repository = new MySqlPetProfileRepository(dbPool);
+    await repository.decrementNftCount(account.toLowerCase());
+
+    const profile = await repository.getPetProfileByAccount(account.toLowerCase());
+    const nftBalance = profile ? profile.nftCount : 0;
+
+    // 토큰 상태 갱신
+    const prev = tokenStateStore.get(account.toLowerCase()) || { hasSbt: false, nftBalance: 0 };
+    tokenStateStore.set(account.toLowerCase(), { ...prev, hasNft: nftBalance > 0, nftBalance });
+
+    res.json({ ok: true, nftCount: nftBalance });
   } catch (error) {
     handleError(error, res);
   }
@@ -639,10 +741,13 @@ app.post('/api/medical/save', requireLogin, async (req, res) => {
       return res.status(400).json({ code: 'INVALID_PARAMS', message: 'account, petSbtId, recordType, description은 필수입니다.' });
     }
 
+    // description을 AES-256-CBC로 암호화하여 저장
+    const encryptedDescription = encryptText(description);
+
     await dbPool.execute(
       `INSERT INTO medical_records_simple (account, pet_sbt_id, record_type, description, vet_address)
        VALUES (?, ?, ?, ?, ?)`,
-      [account, petSbtId, recordType, description, vetAddress || null]
+      [account, petSbtId, recordType, encryptedDescription, vetAddress || null]
     );
 
     const [rows] = await dbPool.execute(
@@ -650,7 +755,9 @@ app.post('/api/medical/save', requireLogin, async (req, res) => {
       [account, petSbtId]
     );
 
-    res.json({ ok: true, record: rows[0] });
+    // 응답 시 복호화하여 반환
+    const record = { ...rows[0], description };
+    res.json({ ok: true, record });
   } catch (error) {
     handleError(error, res);
   }
@@ -663,7 +770,9 @@ app.get('/api/medical/:account/:petSbtId', requireLogin, async (req, res) => {
       'SELECT * FROM medical_records_simple WHERE account = ? AND pet_sbt_id = ? ORDER BY created_at DESC',
       [account, petSbtId]
     );
-    res.json({ records: rows });
+    // description 복호화하여 반환
+    const records = rows.map(r => ({ ...r, description: decryptText(r.description) }));
+    res.json({ records });
   } catch (error) {
     handleError(error, res);
   }

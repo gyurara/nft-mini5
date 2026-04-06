@@ -18,7 +18,7 @@ class MySqlPetProfileRepository {
 
   async getPetProfileByAccount(account) {
     const [rows] = await this.pool.execute(
-      'SELECT account, pet, sbt, nfts FROM pet_profiles WHERE account = ?',
+      'SELECT account, pet, sbt, nfts, nft_count FROM pet_profiles WHERE account = ?',
       [account]
     );
     if (rows.length === 0) return null;
@@ -28,6 +28,7 @@ class MySqlPetProfileRepository {
       pet: JSON.parse(row.pet),
       sbt: row.sbt ? JSON.parse(row.sbt) : null,
       nfts: row.nfts ? JSON.parse(row.nfts) : [],
+      nftCount: row.nft_count || 0,
     };
   }
 
@@ -42,6 +43,49 @@ class MySqlPetProfileRepository {
     profile.nfts = Array.isArray(profile.nfts) ? profile.nfts : [];
     profile.nfts.push(issuance);
     return this.savePetProfile(profile);
+  }
+
+  // 온체인 SBT 민팅 결과를 DB에 동기화
+  async syncSbt(account, sbtData) {
+    const profile = await this.getPetProfileByAccount(account);
+    if (!profile) {
+      throw new Error(`등록된 반려동물 프로필이 없습니다: ${account}`);
+    }
+    await this.pool.execute(
+      'UPDATE pet_profiles SET sbt = ? WHERE account = ?',
+      [JSON.stringify(sbtData), account]
+    );
+    return this.getPetProfileByAccount(account);
+  }
+
+  // 온체인 NFT 민팅 결과를 DB에 동기화 + nft_count 증가
+  async syncNft(account, nftData) {
+    const profile = await this.getPetProfileByAccount(account);
+    if (!profile) {
+      throw new Error(`등록된 반려동물 프로필이 없습니다: ${account}`);
+    }
+    const nfts = Array.isArray(profile.nfts) ? profile.nfts : [];
+    nfts.push(nftData);
+    await this.pool.execute(
+      'UPDATE pet_profiles SET nfts = ?, nft_count = nft_count + 1 WHERE account = ?',
+      [JSON.stringify(nfts), account]
+    );
+    return this.getPetProfileByAccount(account);
+  }
+
+  // 할인권 교환 시 nft_count 차감
+  async decrementNftCount(account) {
+    const [rows] = await this.pool.execute(
+      'SELECT nft_count FROM pet_profiles WHERE account = ?',
+      [account]
+    );
+    if (rows.length === 0 || rows[0].nft_count <= 0) {
+      throw new Error('NFT 보유량이 부족합니다.');
+    }
+    await this.pool.execute(
+      'UPDATE pet_profiles SET nft_count = nft_count - 1 WHERE account = ? AND nft_count > 0',
+      [account]
+    );
   }
 
   async saveTransaction(account, kind, transaction) {
@@ -100,10 +144,18 @@ async function createMySqlPool() {
       pet JSON NOT NULL,
       sbt JSON,
       nfts JSON NOT NULL DEFAULT ('[]'),
+      nft_count INT NOT NULL DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4
   `);
+
+  // 기존 테이블에 nft_count 컬럼이 없으면 추가 (마이그레이션)
+  try {
+    await pool.execute(`ALTER TABLE pet_profiles ADD COLUMN nft_count INT NOT NULL DEFAULT 0`);
+  } catch (e) {
+    if (!e.message.includes('Duplicate column name')) throw e;
+  }
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS pet_transactions (
