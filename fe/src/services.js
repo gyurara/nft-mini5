@@ -347,18 +347,18 @@ export async function createRealGateways() {
   ], signer);
 
   const medicalPassport = new ethers.Contract(MEDICAL_PASSPORT_ADDRESS, [
-    'function mintMedicalPassport(uint256 ownerSbtId, string initialSummaryURI) returns (uint256)',
-    'function appendMedicalRecord(uint256 medicalSbtId, string recordURI, bytes32 dataHash, uint64 visitDate, uint32 schemaVersion, string updatedSummaryURI) returns (uint256)',
-    'function grantHospitalPermission(uint256 medicalSbtId, address hospital, uint64 validUntil, uint32 remainingWrites)',
-    'function revokeHospitalPermission(uint256 medicalSbtId, address hospital)',
-    'function getPassportInfo(uint256 medicalSbtId) view returns (tuple(uint256 linkedOwnerSbtId, uint64 createdAt, uint64 lastVisitDate, uint32 latestSchemaVersion, uint32 totalRecords))',
-    'function getRecord(uint256 medicalSbtId, uint256 recordIndex) view returns (tuple(address hospital, string recordURI, bytes32 dataHash, uint64 visitDate, uint32 schemaVersion, uint64 createdAt))',
-    'function getRecordCount(uint256 medicalSbtId) view returns (uint256)',
-    'function canAppendRecord(uint256 medicalSbtId, address hospital) view returns (bool)',
-    'function medicalSbtByOwnerSbt(uint256 ownerSbtId) view returns (uint256)',
-    'event MedicalPassportMinted(address indexed passportOwner, uint256 indexed ownerSbtId, uint256 indexed medicalSbtId, string initialSummaryURI)',
-    'event MedicalRecordAppended(uint256 indexed medicalSbtId, uint256 indexed recordIndex, address indexed hospital, string recordURI, bytes32 dataHash, uint64 visitDate, uint32 schemaVersion, string updatedSummaryURI)',
-  ], signer);
+  'function mintMedicalPassport(uint256 ownerSbtId, string initialSummaryURI) returns (uint256)',
+  'function appendMedicalRecord(uint256 medicalSbtId, string recordURI, bytes32 dataHash, uint64 visitDate, uint32 schemaVersion, string updatedSummaryURI) returns (uint256)',
+  'function grantHospitalPermission(uint256 medicalSbtId, address hospital, uint64 validUntil, uint32 remainingWrites)',
+  'function revokeHospitalPermission(uint256 medicalSbtId, address hospital)',
+  'function getPassportInfo(uint256 medicalSbtId) view returns (tuple(uint256 linkedOwnerSbtId, uint64 createdAt, uint64 lastVisitDate, uint32 latestSchemaVersion, uint32 totalRecords))',
+  'function getRecord(uint256 medicalSbtId, uint256 recordIndex) view returns (tuple(address hospital, string recordURI, bytes32 dataHash, uint64 visitDate, uint32 schemaVersion, uint64 createdAt))',
+  'function getRecordCount(uint256 medicalSbtId) view returns (uint256)',
+  'function canAppendRecord(uint256 medicalSbtId, address hospital) view returns (bool)',
+  'function medicalSbtByOwnerSbt(uint256 ownerSbtId) view returns (uint256)',
+  // ↓ 이 줄 추가
+  'function getPermission(uint256 medicalSbtId, address hospital) view returns (tuple(bool allowed, uint64 validUntil, uint32 remainingWrites))',
+], signer);
 
   const memoryNFT = new ethers.Contract(MEMORY_NFT_ADDRESS, [
     'function mintMemoryNFT(uint256 petSbtId, string tokenURI) payable returns (uint256)',

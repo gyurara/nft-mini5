@@ -86,7 +86,7 @@ function MedicalSection({ isHospital, showToast, calendarOpen, setCalendarOpen, 
           // recordURI에서 메타데이터 파싱 시도
           let diagnosis = '', treatment = '', hospital = r.hospital, memo = '';
           try {
-            const meta = JSON.parse(atob(r.recordURI.split(',')[1]));
+           const meta = JSON.parse(decodeURIComponent(escape(atob(r.recordURI.split(',')[1]))));
             diagnosis = meta.diagnosis || meta.name || '';
             treatment = meta.treatment || '';
             hospital = meta.hospital || r.hospital;
@@ -161,19 +161,29 @@ function MedicalSection({ isHospital, showToast, calendarOpen, setCalendarOpen, 
   const [grantForm, setGrantForm] = useState({ hospital:"", validUntil:"", remainingWrites:"10" });
   const [granting, setGranting] = useState(false);
 
-  const handleGrant = async () => {
-    if (!grantForm.hospital) { showToast("병원 지갑 주소를 입력해주세요.","error"); return; }
-    setGranting(true);
-    try {
-      // TODO: 실제 컨트랙트 호출
-      // await medicalPassport.grantHospitalPermission(medicalSbtId, grantForm.hospital, validUntil, remainingWrites)
-      showToast("병원 권한이 부여되었습니다!");
-      setGrantModal(false);
-      setGrantForm({ hospital:"", validUntil:"", remainingWrites:"10" });
-    } catch(e) { showToast(e.message,"error"); }
-    finally { setGranting(false); }
-  };
-
+const handleGrant = async () => {
+  if (!grantForm.hospital) { showToast("병원 지갑 주소를 입력해주세요.", "error"); return; }
+  if (!medicalSbtId) { showToast("의료 여권이 없습니다.", "error"); return; }
+  if (!medicalPassport) { showToast("컨트랙트 연결 실패", "error"); return; }
+  setGranting(true);
+  try {
+    const validUntil = grantForm.validUntil
+      ? Math.floor(new Date(grantForm.validUntil).getTime() / 1000)
+      : 0;
+    const remainingWrites = parseInt(grantForm.remainingWrites) || 10;
+    const tx = await medicalPassport.grantHospitalPermission(
+      medicalSbtId,
+      grantForm.hospital,
+      validUntil,
+      remainingWrites
+    );
+    await tx.wait();
+    showToast("병원 권한이 부여되었습니다!");
+    setGrantModal(false);
+    setGrantForm({ hospital:"", validUntil:"", remainingWrites:"10" });
+  } catch(e) { showToast(e.message, "error"); }
+  finally { setGranting(false); }
+};
 return (
     <div style={{ marginTop:32 }}>
 
