@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+<<<<<<< HEAD
 import { ethers } from 'ethers';
 
 /* ─────────────────────────── CSS ─────────────────────────── */
@@ -811,6 +812,14 @@ function usePetServiceApp() {
 }
 
 /* ─────────────────────────── TOAST ─────────────────────────── */
+=======
+import './styles.css';
+import { usePetServiceApp } from './services.js';
+import { HomePage, RegisterPage, MyPage } from './pages.jsx';
+import { GoodsPage } from './goods.jsx';
+
+/* ───────────── Toast ───────────── */
+>>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
 function Toast({ toast }) {
   return (
     <div className={`toast${toast.show ? ' show' : ''}`}>
@@ -823,7 +832,11 @@ function Toast({ toast }) {
   );
 }
 
+<<<<<<< HEAD
 /* ─────────────────────────── NAV ─────────────────────────── */
+=======
+/* ───────────── Nav ───────────── */
+>>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
 function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconnectWallet }) {
   const short = state.account ? state.account.slice(0, 6) + '...' + state.account.slice(-4) : '';
   return (
@@ -835,6 +848,20 @@ function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconne
         ))}
       </div>
       <div className="nav-right">
+<<<<<<< HEAD
+=======
+        {/* 교환권 현황 (로그인 시) */}
+        {state.connected && (
+          <div style={{ display:'flex', gap:6, alignItems:'center', marginRight:8 }}>
+            <div style={{ fontFamily:"'Space Mono',monospace", fontSize:9, letterSpacing:1, color:'var(--accent)', background:'rgba(255,107,53,.1)', padding:'4px 8px', borderRadius:3 }}>
+              🎫{state.discountCoupons}
+            </div>
+            <div style={{ fontFamily:"'Space Mono',monospace", fontSize:9, letterSpacing:1, color:'var(--accent2)', background:'rgba(124,58,237,.1)', padding:'4px 8px', borderRadius:3 }}>
+              🔓SBT {state.sbtCount}
+            </div>
+          </div>
+        )}
+>>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
         <div className="theme-wrap">
           <span className="theme-lbl">{theme === 'dark' ? 'DARK' : 'LIGHT'}</span>
           <button className="theme-toggle" onClick={toggleTheme} />
@@ -848,6 +875,7 @@ function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconne
   );
 }
 
+<<<<<<< HEAD
 /* ─────────────────────────── HOME ─────────────────────────── */
 function HomePage({ setPage, state }) {
   const EMOJI = { '강아지': '🐶', '고양이': '🐱', '토끼': '🐰', '햄스터': '🐹' };
@@ -2189,18 +2217,40 @@ function GoodsPage({ state, getGoodsPreview, showToast, setPage }) {
 
 
 /* ─────────────────────────── APP ROOT ─────────────────────────── */
+=======
+/* ───────────── App ───────────── */
+>>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
 export default function App() {
   const [theme, setTheme] = useState('dark');
   const [page, setPage] = useState('home');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const toastTimer = useRef(null);
 
+<<<<<<< HEAD
   const { state, connectWallet, disconnectWallet, registerPet, issueSbt, issueNft, getMyPage, getGoodsPreview, setActivePetId } = usePetServiceApp();
+=======
+  const {
+    state,
+    connectWallet,
+    disconnectWallet,
+    registerPet,
+    issueSbt,
+    issueNft,
+    redeemGoodsCoupon,
+    addNftCouponFromMedical,
+    mintMedicalPassport,
+    useDiscountCoupons,
+    getMyPage,
+    getGoodsPreview,
+    setActivePetId,
+  } = usePetServiceApp();
+>>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+<<<<<<< HEAD
   useEffect(() => {
     if (document.getElementById('petchain-styles')) return;
     const style = document.createElement('style');
@@ -2213,6 +2263,12 @@ export default function App() {
     clearTimeout(toastTimer.current);
     setToast({ show: true, message, type });
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3000);
+=======
+  const showToast = useCallback((message, type = 'success') => {
+    clearTimeout(toastTimer.current);
+    setToast({ show: true, message, type });
+    toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3500);
+>>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
   }, []);
 
   const handleConnect = async () => {
@@ -2225,6 +2281,7 @@ export default function App() {
     showToast('지갑 연결이 해제되었습니다.', 'error');
   };
 
+<<<<<<< HEAD
   const pages = { home: HomePage, register: RegisterPage, mypage: MyPage, goods: GoodsPage };
   const PageComponent = pages[page] || HomePage;
 
@@ -2244,6 +2301,44 @@ export default function App() {
         setPage={setPage}
         setActivePetId={setActivePetId}
       />
+=======
+  const commonProps = {
+    state,
+    registerPet,
+    issueSbt,
+    issueNft,
+    redeemGoodsCoupon,
+    addNftCouponFromMedical,
+    mintMedicalPassport,
+    useDiscountCoupons,
+    getMyPage,
+    getGoodsPreview,
+    connectWallet: handleConnect,
+    showToast,
+    setPage,
+    setActivePetId,
+  };
+
+  const pages = {
+    home:     <HomePage {...commonProps} />,
+    register: <RegisterPage {...commonProps} />,
+    mypage:   <MyPage {...commonProps} />,
+    goods:    <GoodsPage {...commonProps} />,
+  };
+
+  return (
+    <>
+      <Nav
+        page={page}
+        setPage={setPage}
+        theme={theme}
+        toggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+        state={state}
+        connectWallet={handleConnect}
+        disconnectWallet={handleDisconnect}
+      />
+      {pages[page] || pages.home}
+>>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
       <Toast toast={toast} />
     </>
   );
