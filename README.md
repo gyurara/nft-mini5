@@ -39,7 +39,7 @@ npm install
 npm run dev
 ```
 
-`.env` 설정 예시는 `feVite/.env.example`를 참고해 `VITE_` 접두어로 복사/수정하세요. `VITE_API_BASE_URL`은 Node API(`be/`), `VITE_ANIMAL_API_BASE_URL`은 Spring Animal API(`backend/`)를 가리킵니다. 개발 시 `npm run dev`는 `/api` 요청을 기본적으로 `http://localhost:4000`으로 프록시합니다.
+환경 변수는 저장소 루트의 `.env`/`.env.example` 하나로 통합했습니다. 프론트엔드(Vite 앱들)와 Node API(`be/`)가 모두 루트 `.env`를 읽습니다. `VITE_API_BASE_URL`은 Node API(`be/`), `VITE_ANIMAL_API_BASE_URL`은 Spring Animal API(`backend/`)를 가리킵니다.
 
 ### 백엔드 실행 — Node.js (`be/`, 포트 4000)
 
@@ -48,10 +48,10 @@ MySQL 연동이 필요합니다. 서버 시작 시 `pawchain` 데이터베이스
 1. 환경변수 파일 생성
 
 ```bash
-cp be/.env.example be/.env
+cp .env.example .env
 ```
 
-2. `be/.env` 파일을 열어 MySQL 비밀번호 입력
+2. 루트 `.env` 파일을 열어 MySQL 비밀번호 등 필요한 값을 입력
 
 ```
 DB_HOST=localhost

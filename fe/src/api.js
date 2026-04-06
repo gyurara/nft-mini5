@@ -1,4 +1,4 @@
-const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:4000/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -8,7 +8,7 @@ async function request(path, options = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.message || '��û�� �����߾��.');
+    const err = new Error(data.message || '요청에 실패했습니다.');
     err.code = data.code;
     err.status = res.status;
     throw err;
