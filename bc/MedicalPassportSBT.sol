@@ -9,10 +9,10 @@ import {IERC5192} from "./IERC5192.sol";
 
 /// @title MedicalPassportSBT
 /// @notice Soulbound ERC-721 that stores a pet's longitudinal medical passport.
-/// @dev One OwnerSBT -> one MedicalPassportSBT. Hospitals append records to the same passport.
+/// @dev One PetSBT token -> one MedicalPassportSBT. Hospitals append records to the same passport.
 contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
     struct PassportInfo {
-        uint256 linkedOwnerSbtId;
+        uint256 linkedPetTokenId;
         uint64 createdAt;
         uint64 lastVisitDate;
         uint32 latestSchemaVersion;
@@ -42,21 +42,22 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
     error EmptyDataHash();
     error InvalidSchemaVersion();
     error InvalidVisitDate();
-    error InvalidOwnerSbt();
-    error OwnerSbtAlreadyLinked();
-    error NotOwnerSbtHolder();
+    error InvalidPetSBT();
+    error PetSBTAlreadyLinked();
+    error NotPetSBTHolder();
     error NotPassportOwner();
     error InvalidPermissionWindow();
     error InvalidRemainingWrites();
     error PermissionDenied();
     error RecordIndexOutOfBounds();
 
-    IERC721 public immutable ownerSBT;
+    /// @notice Address of the PetSBT contract used as the source of truth for pet ownership.
+    IERC721 public immutable petSBT;
 
     uint256 private _nextTokenId;
 
-    /// @notice ownerSbtId => medicalPassportSbtId
-    mapping(uint256 => uint256) public medicalSbtByOwnerSbt;
+    /// @notice petTokenId (from PetSBT) => medicalPassportSbtId
+    mapping(uint256 => uint256) public medicalSbtByPetToken;
 
     mapping(uint256 => PassportInfo) private _passportInfoByTokenId;
     mapping(uint256 => mapping(address => Permission)) private _permissions;
@@ -64,7 +65,7 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
 
     event MedicalPassportMinted(
         address indexed passportOwner,
-        uint256 indexed ownerSbtId,
+        uint256 indexed petTokenId,
         uint256 indexed medicalSbtId,
         string initialSummaryURI
     );
@@ -94,41 +95,41 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
         string updatedSummaryURI
     );
 
-    constructor(address ownerSbtAddress) ERC721("Pet Medical Passport SBT", "PMPS") {
-        if (ownerSbtAddress == address(0)) revert ZeroAddress();
-        ownerSBT = IERC721(ownerSbtAddress);
+    constructor(address petSbtAddress) ERC721("Pet Medical Passport SBT", "PMPS") {
+        if (petSbtAddress == address(0)) revert ZeroAddress();
+        petSBT = IERC721(petSbtAddress);
     }
 
-    /// @notice Mint one medical passport SBT for an existing OwnerSBT.
-    /// @dev The caller must own the linked OwnerSBT.
-    function mintMedicalPassport(uint256 ownerSbtId, string calldata initialSummaryURI)
+    /// @notice Mint one medical passport SBT for an existing PetSBT token.
+    /// @dev The caller must own the linked PetSBT token.
+    function mintMedicalPassport(uint256 petTokenId, string calldata initialSummaryURI)
         external
         returns (uint256 medicalSbtId)
     {
         if (bytes(initialSummaryURI).length == 0) revert EmptySummaryURI();
-        if (medicalSbtByOwnerSbt[ownerSbtId] != 0) revert OwnerSbtAlreadyLinked();
+        if (medicalSbtByPetToken[petTokenId] != 0) revert PetSBTAlreadyLinked();
 
-        address petOwner = _ownerOfOwnerSbt(ownerSbtId);
-        if (petOwner != msg.sender) revert NotOwnerSbtHolder();
+        address petOwner = _ownerOfPetSbt(petTokenId);
+        if (petOwner != msg.sender) revert NotPetSBTHolder();
 
         medicalSbtId = ++_nextTokenId;
         _safeMint(msg.sender, medicalSbtId);
         _setTokenURI(medicalSbtId, initialSummaryURI);
 
-        medicalSbtByOwnerSbt[ownerSbtId] = medicalSbtId;
+        medicalSbtByPetToken[petTokenId] = medicalSbtId;
         _passportInfoByTokenId[medicalSbtId] = PassportInfo({
-            linkedOwnerSbtId: ownerSbtId,
+            linkedPetTokenId: petTokenId,
             createdAt: uint64(block.timestamp),
             lastVisitDate: 0,
             latestSchemaVersion: 0,
             totalRecords: 0
         });
 
-        emit MedicalPassportMinted(msg.sender, ownerSbtId, medicalSbtId, initialSummaryURI);
+        emit MedicalPassportMinted(msg.sender, petTokenId, medicalSbtId, initialSummaryURI);
         emit Locked(medicalSbtId);
     }
 
-    /// @notice Owner grants a hospital wallet permission to append records.
+    /// @notice Passport owner grants a hospital wallet permission to append records.
     /// @param validUntil 0 = no expiry, otherwise unix timestamp cutoff.
     /// @param remainingWrites Number of records the hospital may append. Use type(uint32).max for unlimited.
     function grantHospitalPermission(
@@ -281,12 +282,12 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
         return true;
     }
 
-    function _ownerOfOwnerSbt(uint256 ownerSbtId) internal view returns (address) {
-        try ownerSBT.ownerOf(ownerSbtId) returns (address owner_) {
-            if (owner_ == address(0)) revert InvalidOwnerSbt();
+    function _ownerOfPetSbt(uint256 petTokenId) internal view returns (address) {
+        try petSBT.ownerOf(petTokenId) returns (address owner_) {
+            if (owner_ == address(0)) revert InvalidPetSBT();
             return owner_;
         } catch {
-            revert InvalidOwnerSbt();
+            revert InvalidPetSBT();
         }
     }
 
