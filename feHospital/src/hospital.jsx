@@ -113,7 +113,7 @@ export default function HospitalPage({ account, showToast }) {
         const r = await medicalPassport.getRecord(mId, i);
         let diagnosis = '', treatment = '', hospital = r.hospital, memo = '';
         try {
-          const meta = JSON.parse(atob(r.recordURI.split(',')[1]));
+          const meta = JSON.parse(decodeURIComponent(escape(atob(r.recordURI.split(',')[1]))));
           diagnosis = meta.diagnosis || ''; treatment = meta.treatment || '';
           hospital = meta.hospital || r.hospital; memo = meta.memo || '';
         } catch (_) { diagnosis = r.recordURI; }
@@ -135,10 +135,10 @@ export default function HospitalPage({ account, showToast }) {
       if (!canAppend) throw new Error('이 의료 여권에 기록을 추가할 권한이 없습니다. 반려동물 주인에게 권한을 요청하세요.');
 
       const visitDate = Math.floor(new Date(form.visitDate).getTime() / 1000);
-      const recordURI = `data:application/json;base64,${btoa(JSON.stringify({
+      const recordURI = `data:application/json;base64,${btoa(unescape(encodeURIComponent(JSON.stringify({
         diagnosis: form.diagnosis, treatment: form.treatment,
         hospital: form.hospital, memo: form.memo, visitDate,
-      }))}`;
+      }))))}`;
       const dataHash = '0x' + Array.from(crypto.getRandomValues(new Uint8Array(32)))
         .map(b => b.toString(16).padStart(2, '0')).join('');
 
