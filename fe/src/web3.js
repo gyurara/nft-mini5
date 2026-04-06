@@ -2,19 +2,19 @@ const ETHERS_CDN_URL = 'https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/eth
 const DEFAULT_CHAIN_ID_HEX = '0xaa36a7';
 
 const CHAIN_CONFIG = {
-  chainIdHex: normalizeHexChainId(process.env.REACT_APP_CHAIN_ID || DEFAULT_CHAIN_ID_HEX),
-  chainName: process.env.REACT_APP_CHAIN_NAME || 'Sepolia',
-  rpcUrl: process.env.REACT_APP_RPC_URL || 'https://rpc.sepolia.org',
-  blockExplorerUrl: process.env.REACT_APP_BLOCK_EXPLORER_URL || 'https://sepolia.etherscan.io',
+  chainIdHex: normalizeHexChainId(import.meta.env.VITE_CHAIN_ID || DEFAULT_CHAIN_ID_HEX),
+  chainName: import.meta.env.VITE_CHAIN_NAME || 'Sepolia',
+  rpcUrl: import.meta.env.VITE_RPC_URL || 'https://rpc.sepolia.org',
+  blockExplorerUrl: import.meta.env.VITE_BLOCK_EXPLORER_URL || 'https://sepolia.etherscan.io',
   nativeCurrency: {
-    name: process.env.REACT_APP_NATIVE_CURRENCY_NAME || 'Sepolia ETH',
-    symbol: process.env.REACT_APP_NATIVE_CURRENCY_SYMBOL || 'SEP',
-    decimals: Number(process.env.REACT_APP_NATIVE_CURRENCY_DECIMALS || 18),
+    name: import.meta.env.VITE_NATIVE_CURRENCY_NAME || 'Sepolia ETH',
+    symbol: import.meta.env.VITE_NATIVE_CURRENCY_SYMBOL || 'SEP',
+    decimals: Number(import.meta.env.VITE_NATIVE_CURRENCY_DECIMALS || 18),
   },
 };
 
-const SBT_CONTRACT_ADDRESS = process.env.REACT_APP_SBT_CONTRACT_ADDRESS || '';
-const MEMORY_NFT_CONTRACT_ADDRESS = process.env.REACT_APP_MEMORY_NFT_CONTRACT_ADDRESS || '';
+const SBT_CONTRACT_ADDRESS = import.meta.env.VITE_SBT_CONTRACT_ADDRESS || '';
+const MEMORY_NFT_CONTRACT_ADDRESS = import.meta.env.VITE_MEMORY_NFT_CONTRACT_ADDRESS || '';
 
 const PET_SBT_ABI = [
   'event PetRegistered(address indexed owner, uint256 indexed tokenId, string tokenURI)',
