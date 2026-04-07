@@ -119,7 +119,7 @@ nav{position:sticky;top:0;z-index:200;display:flex;align-items:center;justify-co
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
 .chain-text{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent2);letter-spacing:1px;}
 
-.mypage-layout{padding:60px 80px;position:relative;z-index:1;}
+.mypage-layout{padding:60px 80px;position:relative;}
 .mypage-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border);}
 .wallet-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
 .wallet-addr{font-family:'Space Mono',monospace;font-size:14px;color:var(--accent3);}
@@ -166,7 +166,7 @@ nav{position:sticky;top:0;z-index:200;display:flex;align-items:center;justify-co
 .nft-item-edition{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;}
 .nft-item-num{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);}
 
-.modal-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);align-items:center;justify-content:center;}
+.modal-overlay{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);align-items:center;justify-content:center;}
 .modal-overlay.open{display:flex;}
 .modal{background:var(--card);border:1px solid var(--border);width:500px;max-width:95vw;padding:40px;position:relative;animation:modal-in .3s ease;max-height:90vh;overflow-y:auto;}
 @keyframes modal-in{from{opacity:0;transform:scale(.95) translateY(20px)}to{opacity:1;transform:none}}
