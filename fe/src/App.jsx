@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { ethers } from 'ethers';
 
 /* ─────────────────────────── CSS ─────────────────────────── */
@@ -813,13 +814,18 @@ function usePetServiceApp() {
 
 /* ─────────────────────────── TOAST ─────────────────────────── */
 =======
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
 import './styles.css';
 import { usePetServiceApp } from './services.js';
 import { HomePage, RegisterPage, MyPage } from './pages.jsx';
 import { GoodsPage } from './goods.jsx';
 
 /* ───────────── Toast ───────────── */
+<<<<<<< HEAD
 >>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
 function Toast({ toast }) {
   return (
     <div className={`toast${toast.show ? ' show' : ''}`}>
@@ -833,10 +839,14 @@ function Toast({ toast }) {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 /* ─────────────────────────── NAV ─────────────────────────── */
 =======
 /* ───────────── Nav ───────────── */
 >>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
+=======
+/* ───────────── Nav ───────────── */
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
 function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconnectWallet }) {
   const short = state.account ? state.account.slice(0, 6) + '...' + state.account.slice(-4) : '';
   return (
@@ -849,7 +859,10 @@ function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconne
       </div>
       <div className="nav-right">
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
         {/* 교환권 현황 (로그인 시) */}
         {state.connected && (
           <div style={{ display:'flex', gap:6, alignItems:'center', marginRight:8 }}>
@@ -861,7 +874,10 @@ function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconne
             </div>
           </div>
         )}
+<<<<<<< HEAD
 >>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
         <div className="theme-wrap">
           <span className="theme-lbl">{theme === 'dark' ? 'DARK' : 'LIGHT'}</span>
           <button className="theme-toggle" onClick={toggleTheme} />
@@ -875,6 +891,7 @@ function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconne
   );
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 /* ─────────────────────────── HOME ─────────────────────────── */
 function HomePage({ setPage, state }) {
@@ -2220,6 +2237,9 @@ function GoodsPage({ state, getGoodsPreview, showToast, setPage }) {
 =======
 /* ───────────── App ───────────── */
 >>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
+=======
+/* ───────────── App ───────────── */
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
 export default function App() {
   const [theme, setTheme] = useState('dark');
   const [page, setPage] = useState('home');
@@ -2227,8 +2247,11 @@ export default function App() {
   const toastTimer = useRef(null);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   const { state, connectWallet, disconnectWallet, registerPet, issueSbt, issueNft, getMyPage, getGoodsPreview, setActivePetId } = usePetServiceApp();
 =======
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
   const {
     state,
     connectWallet,
@@ -2244,12 +2267,16 @@ export default function App() {
     getGoodsPreview,
     setActivePetId,
   } = usePetServiceApp();
+<<<<<<< HEAD
 >>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   useEffect(() => {
     if (document.getElementById('petchain-styles')) return;
@@ -2264,11 +2291,16 @@ export default function App() {
     setToast({ show: true, message, type });
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3000);
 =======
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
   const showToast = useCallback((message, type = 'success') => {
     clearTimeout(toastTimer.current);
     setToast({ show: true, message, type });
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3500);
+<<<<<<< HEAD
 >>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
   }, []);
 
   const handleConnect = async () => {
@@ -2281,6 +2313,7 @@ export default function App() {
     showToast('지갑 연결이 해제되었습니다.', 'error');
   };
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   const pages = { home: HomePage, register: RegisterPage, mypage: MyPage, goods: GoodsPage };
   const PageComponent = pages[page] || HomePage;
@@ -2302,6 +2335,8 @@ export default function App() {
         setActivePetId={setActivePetId}
       />
 =======
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
   const commonProps = {
     state,
     registerPet,
@@ -2338,7 +2373,10 @@ export default function App() {
         disconnectWallet={handleDisconnect}
       />
       {pages[page] || pages.home}
+<<<<<<< HEAD
 >>>>>>> edf290ab3b799c0f543f0ff98226ca1c4c0eb873
+=======
+>>>>>>> 834a8e4eb66574900d146e6d950fdb8776532f5c
       <Toast toast={toast} />
     </>
   );

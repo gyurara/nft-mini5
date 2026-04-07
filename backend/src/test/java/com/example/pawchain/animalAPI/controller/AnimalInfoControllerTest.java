@@ -1,10 +1,5 @@
 package com.example.pawchain.animalAPI.controller;
 
-import com.example.pawchain.animalAPI.config.AnimalApiProperties;
-import com.example.pawchain.animalAPI.dto.AnimalInfoResponse;
-import com.example.pawchain.animalAPI.exception.AnimalApiException;
-import com.example.pawchain.animalAPI.exception.GlobalExceptionHandler;
-import com.example.pawchain.animalAPI.service.AnimalInfoService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -13,6 +8,13 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.example.pawchain.animalAPI.config.AnimalApiProperties;
+import com.example.pawchain.animalAPI.controller.AnimalInfoController;
+import com.example.pawchain.animalAPI.dto.AnimalInfoResponse;
+import com.example.pawchain.animalAPI.exception.AnimalApiException;
+import com.example.pawchain.animalAPI.exception.GlobalExceptionHandler;
+import com.example.pawchain.animalAPI.service.AnimalInfoService;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;

@@ -770,14 +770,20 @@ function usePetServiceApp() {
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     const acc = accounts[0];
     setAccount(acc);
-    const { sessionGateway } = await createRealGateways();
-    const ts = await sessionGateway.getTokenState(acc);
-    // 지갑 연결 시 전체 tokenState는 일단 비워두고 프로필별로 관리
+
+    // 지갑 주소로 백엔드 세션 자동 생성 (wallet-based login)
+    try {
+      await api.walletLogin(acc);
+    } catch (e) {
+      console.warn('[wallet-login] 세션 생성 실패 (서버 미연결 시 무시):', e.message);
+    }
+
     setTokenStates({});
     return acc;
   }, []);
 
-  const disconnectWallet = useCallback(() => {
+  const disconnectWallet = useCallback(async () => {
+    try { await api.walletLogout(); } catch (_) {}
     setAccount(null);
     setProfiles([]);
     setActivePetId(null);
@@ -2406,12 +2412,80 @@ function GoodsPage({ state, getGoodsPreview, showToast, setPage }) {
 }
 
 
+/* ─────────────────────────── VET APPROVAL POPUP ─────────────────────────── */
+function VetApprovalPopup({ requests, onRespond }) {
+  const [responding, setResponding] = useState(false);
+  const req = requests[0];
+  if (!req) return null;
+
+  const handle = async (approved) => {
+    setResponding(true);
+    await onRespond(req.id, req.ownerAddress, approved);
+    setResponding(false);
+  };
+
+  return (
+    <div className="modal-overlay open" style={{ zIndex: 600 }}>
+      <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+        <div style={{ textAlign: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🏥</div>
+          <div className="modal-title" style={{ fontSize: 28 }}>진료 권한 요청</div>
+          <div className="modal-sub">병원에서 반려동물 진료 기록 접근 권한을 요청했습니다.</div>
+        </div>
+
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 20, marginBottom: 20, borderRadius: 8 }}>
+          {[
+            ['병원명', req.vetName || '—'],
+            ['병원 지갑', req.vetAddress ? req.vetAddress.slice(0, 10) + '...' + req.vetAddress.slice(-6) : '—'],
+            ['반려동물 SBT ID', `#${req.petSbtId}`],
+            ['요청 메시지', req.message || '—'],
+          ].map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid var(--border)' }}>
+              <span style={{ color: 'var(--muted)', fontFamily: "'Space Mono',monospace", fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' }}>{k}</span>
+              <span>{v}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.25)', padding: '10px 14px', marginBottom: 20, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, borderRadius: 6 }}>
+          💡 승인 시 해당 병원이 진료 기록을 열람하고 추가할 수 있습니다.<br />
+          <strong style={{ color: 'var(--accent2)' }}>수수료는 병원이 부담합니다.</strong> 별도 비용이 발생하지 않습니다.
+        </div>
+
+        {requests.length > 1 && (
+          <div style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, color: 'var(--muted)', textAlign: 'center', marginBottom: 12 }}>
+            대기 중인 요청 {requests.length}건 중 1번째
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => handle(false)}
+            disabled={responding}
+            style={{ flex: 1, padding: 14, fontFamily: "'Space Mono',monospace", fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', cursor: 'pointer', transition: 'all .2s', opacity: responding ? 0.5 : 1 }}>
+            거절
+          </button>
+          <button
+            onClick={() => handle(true)}
+            disabled={responding}
+            className="btn-modal-mint"
+            style={{ flex: 2 }}>
+            {responding ? '처리 중...' : '✅ 승인하기'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────────────────── APP ROOT ─────────────────────────── */
 export default function App() {
   const [theme, setTheme] = useState('dark');
   const [page, setPage] = useState('home');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [vetRequests, setVetRequests] = useState([]);
   const toastTimer = useRef(null);
+  const sseRef = useRef(null);
 
   const { state, connectWallet, disconnectWallet, registerPet, issueSbt, issueNft, getMyPage, getGoodsPreview, setActivePetId } = usePetServiceApp();
 
@@ -2427,11 +2501,58 @@ export default function App() {
     document.head.appendChild(style);
   }, []);
 
+  // SSE: 병원 권한 요청 실시간 수신
+  useEffect(() => {
+    if (!state.account) {
+      if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
+      setVetRequests([]);
+      return;
+    }
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+    const es = new EventSource(`${API_BASE}/notifications/${state.account}`, { withCredentials: true });
+    sseRef.current = es;
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'VET_APPROVAL_REQUEST') {
+          setVetRequests(prev => prev.find(r => r.id === data.id) ? prev : [...prev, data]);
+          showToastRef.current('🏥 병원에서 진료 권한을 요청했습니다!');
+        }
+      } catch (_) {}
+    };
+    es.onerror = () => {};
+    return () => { es.close(); sseRef.current = null; };
+  }, [state.account]);
+
+  const showToastRef = useRef(null);
+
   const showToast = useCallback((message, type = 'success') => {
     clearTimeout(toastTimer.current);
     setToast({ show: true, message, type });
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3000);
   }, []);
+
+  // ref를 통해 SSE 핸들러에서도 showToast 사용 가능
+  showToastRef.current = showToast;
+
+  const respondApproval = useCallback(async (approvalId, ownerAddress, approved) => {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+    try {
+      const res = await fetch(`${API_BASE}/vet/respond-approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ approvalId, ownerAddress, approved }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '오류가 발생했습니다.');
+      setVetRequests(prev => prev.filter(r => r.id !== approvalId));
+      showToast(approved ? `✅ ${data.approval?.vetName || '병원'} 진료 권한을 승인했습니다.` : '거절했습니다.', approved ? 'success' : 'error');
+    } catch (e) {
+      showToast(e.message || '응답 처리 중 오류가 발생했습니다.', 'error');
+    }
+  }, [showToast]);
 
   const handleConnect = async () => {
     await connectWallet();
@@ -2463,6 +2584,9 @@ export default function App() {
         setActivePetId={setActivePetId}
       />
       <Toast toast={toast} />
+      {vetRequests.length > 0 && (
+        <VetApprovalPopup requests={vetRequests} onRespond={respondApproval} />
+      )}
     </>
   );
 }

@@ -5,6 +5,7 @@
 
 # Dependencies
 node_modules/
+**/node_modules/
 
 # Build / package outputs
 dist/
@@ -13,6 +14,14 @@ out/
 coverage/
 .gradle/
 **/.gradle-home/
+
+# Java compiled output
+*.class
+backend/bin/
+backend/out/
+backend/build/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
 
 # Solidity / EVM tool outputs
 artifacts/

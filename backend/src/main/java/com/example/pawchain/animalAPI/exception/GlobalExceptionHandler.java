@@ -1,11 +1,12 @@
 package com.example.pawchain.animalAPI.exception;
 
-import com.example.pawchain.animalAPI.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import com.example.pawchain.animalAPI.dto.ErrorResponse;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {

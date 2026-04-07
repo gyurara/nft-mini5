@@ -3,6 +3,23 @@ import './styles.css';
 import { connectWallet, getConnectedAccount } from './web3.js';
 import HospitalPage from './hospital.jsx';
 
+const NODE_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+
+// 지갑 주소로 백엔드 세션 생성 (hospital ORG 계정 또는 신규 USER로 자동 로그인)
+async function walletLogin(walletAddress) {
+  const res = await fetch(`${NODE_API}/auth/wallet-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ walletAddress, role: 'ORG' }),
+  });
+  return res.json();
+}
+
+async function walletLogout() {
+  await fetch(`${NODE_API}/auth/logout`, { method: 'POST', credentials: 'include' });
+}
+
 /* ───────────── Toast ───────────── */
 function Toast({ toast }) {
   return (
@@ -64,11 +81,18 @@ export default function App() {
     try {
       const acc = await connectWallet();
       setAccount(acc);
-      showToast('지갑이 연결되었습니다.');
+      // 지갑 주소로 백엔드 세션 자동 생성
+      const res = await walletLogin(acc);
+      if (res.user?.role === 'ORG') {
+        showToast(`병원 계정으로 연결되었습니다. (${res.user.name})`);
+      } else {
+        showToast('지갑이 연결되었습니다.');
+      }
     } catch (e) { showToast(e.message, 'error'); }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
+    try { await walletLogout(); } catch (_) {}
     setAccount(null);
     showToast('지갑 연결이 해제되었습니다.', 'error');
   };
