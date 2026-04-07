@@ -89,8 +89,16 @@ const contractGateway = {
 const app = express();
 
 // CORS: 세션 쿠키를 쓰려면 credentials: true + 명시적 origin 필요
+const ALLOWED_ORIGINS = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',').map(o => o.trim());
+// feHospital은 별도 포트(5174)에서 실행될 수 있으므로 추가
+if (!ALLOWED_ORIGINS.includes('http://localhost:5174')) ALLOWED_ORIGINS.push('http://localhost:5174');
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS not allowed: ${origin}`));
+  },
   credentials: true,
 }));
 
@@ -263,6 +271,74 @@ app.put('/api/auth/wallet', requireLogin, async (req, res) => {
     req.session.user.walletAddress = normalized;
 
     res.json({ ok: true, walletAddress: normalized });
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+// ─── 지갑 기반 로그인 ────────────────────────────────────────────────────────
+// 지갑 연결 시 자동으로 세션 생성 (email/password 불필요)
+// POST /api/auth/wallet-login
+// Body: { walletAddress, role? }  role이 'ORG'이면 신규 지갑을 병원 계정으로 생성
+app.post('/api/auth/wallet-login', async (req, res) => {
+  try {
+    const { walletAddress, role: requestedRole } = req.body || {};
+    if (!walletAddress) {
+      return res.status(400).json({ code: 'INVALID_PARAMS', message: 'walletAddress는 필수입니다.' });
+    }
+
+    const normalized = walletAddress.toLowerCase();
+    const newRole = requestedRole === 'ORG' ? 'ORG' : 'USER';
+
+    // 이미 같은 지갑으로 세션이 있으면 그대로 반환
+    if (req.session.user && req.session.user.walletAddress === normalized) {
+      return res.json({ ok: true, user: req.session.user });
+    }
+
+    // 다른 계정이 이 지갑을 이미 사용 중인지 확인
+    const [walletRows] = await dbPool.execute(
+      'SELECT * FROM users WHERE wallet_address = ?',
+      [normalized]
+    );
+
+    let user;
+
+    if (walletRows.length > 0) {
+      // 이미 이 지갑으로 등록된 계정 존재 → 해당 계정으로 로그인
+      user = walletRows[0];
+    } else if (req.session.user) {
+      // 세션이 있는데 지갑이 없는 경우 → 현재 로그인 계정에 지갑 추가
+      await dbPool.execute(
+        'UPDATE users SET wallet_address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [normalized, req.session.user.id]
+      );
+      const [updated] = await dbPool.execute('SELECT * FROM users WHERE id = ?', [req.session.user.id]);
+      user = updated[0];
+    } else {
+      // 신규 지갑 + 세션 없음 → role에 따라 계정 자동 생성
+      const prefix = newRole === 'ORG' ? 'Hospital' : 'User';
+      const tempName = `${prefix}_${normalized.slice(2, 8)}`;
+      const [result] = await dbPool.execute(
+        `INSERT INTO users (role, name, email, password_hash, wallet_address)
+         VALUES (?, ?, ?, '', ?)`,
+        [newRole, tempName, `${normalized}@wallet.local`, normalized]
+      );
+      const [newRows] = await dbPool.execute('SELECT * FROM users WHERE id = ?', [result.insertId]);
+      user = newRows[0];
+    }
+
+    req.session.user = {
+      id: user.id,
+      role: user.role,
+      name: user.name,
+      email: user.email,
+      walletAddress: user.wallet_address || normalized,
+    };
+
+    res.json({
+      ok: true,
+      user: req.session.user,
+    });
   } catch (error) {
     handleError(error, res);
   }

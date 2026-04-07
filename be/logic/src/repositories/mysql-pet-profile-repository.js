@@ -124,6 +124,7 @@ async function createMySqlPool() {
     port: parseInt(process.env.DB_PORT || '3306'),
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
+    charset: 'utf8mb4',
   });
   await tempConn.execute(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4`);
   await tempConn.end();
@@ -134,6 +135,7 @@ async function createMySqlPool() {
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: dbName,
+    charset: 'utf8mb4',
     waitForConnections: true,
     connectionLimit: 10,
   });
