@@ -22,7 +22,7 @@ function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconne
   const short = state.account ? state.account.slice(0, 6) + '...' + state.account.slice(-4) : '';
   return (
     <nav>
-      <div className="logo" onClick={() => setPage('home')}>PET<span>CHAIN</span></div>
+      <div className="logo" onClick={() => setPage('home')}>Ani<span>Code</span></div>
       <div className="nav-links">
         {[['home', '홈'], ['register', '등록'], ['mypage', '마이페이지'], ['goods', '굿즈']].map(([k, v]) => (
           <a key={k} className={page === k ? 'active' : ''} onClick={() => setPage(k)}>{v}</a>
@@ -55,8 +55,8 @@ function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconne
 
 /* ───────────── App ───────────── */
 export default function App() {
-  const [theme, setTheme] = useState('dark');
-  const [page, setPage] = useState('home');
+  const [theme, setTheme] = useState(() => localStorage.getItem('petchain:theme') || 'dark');
+  const [page, setPage] = useState(() => localStorage.getItem('petchain:page') || 'home');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const toastTimer = useRef(null);
 
@@ -78,7 +78,12 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('petchain:theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('petchain:page', page);
+  }, [page]);
 
   const showToast = useCallback((message, type = 'success') => {
     clearTimeout(toastTimer.current);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getContracts } from './web3.js';
 
 export default function HospitalPage({ account, showToast }) {
@@ -9,10 +9,32 @@ export default function HospitalPage({ account, showToast }) {
   const [permission, setPermission] = useState(null);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
+  const updatesChannelRef = useRef(null);
+  const initialLookupDone = useRef(false);
   const [form, setForm] = useState({
     diagnosis: '', treatment: '', hospital: '', memo: '',
     visitDate: new Date().toISOString().split('T')[0],
   });
+
+
+  useEffect(() => {
+    const saved = localStorage.getItem('hospital:lastPetSbtId');
+    if (saved) setPetSbtId(saved);
+    if (typeof BroadcastChannel !== 'undefined') {
+      updatesChannelRef.current = new BroadcastChannel('medical-updates');
+    }
+    return () => {
+      updatesChannelRef.current?.close?.();
+      updatesChannelRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (account && petSbtId && !initialLookupDone.current) {
+      initialLookupDone.current = true;
+      lookupPassport();
+    }
+  }, [account, petSbtId]);
 
   const lookupPassport = async () => {
     if (!petSbtId.trim()) { showToast('PetSBT ID를 입력해주세요.', 'error'); return; }
@@ -27,6 +49,7 @@ export default function HospitalPage({ account, showToast }) {
       }
       const mId = Number(mSbtId);
       setMedicalSbtId(mId);
+      localStorage.setItem('hospital:lastPetSbtId', petSbtId);
 
       // 여권 정보
       const info = await medicalPassport.getPassportInfo(mId);
@@ -85,6 +108,11 @@ export default function HospitalPage({ account, showToast }) {
 
       setRecords(prev => [{ visitDate, diagnosis: form.diagnosis, treatment: form.treatment, hospital: form.hospital, memo: form.memo }, ...prev]);
       setForm({ diagnosis: '', treatment: '', hospital: '', memo: '', visitDate: new Date().toISOString().split('T')[0] });
+
+      const event = { type: 'record-added', medicalSbtId, petSbtId: Number(petSbtId) || null, timestamp: Date.now() };
+      localStorage.setItem('medical-record-updated', JSON.stringify(event));
+      updatesChannelRef.current?.postMessage?.(event);
+
 
       // 권한 업데이트
       if (permission && permission.remainingWrites !== 4294967295) {
