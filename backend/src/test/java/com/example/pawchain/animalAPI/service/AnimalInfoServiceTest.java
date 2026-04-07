@@ -1,10 +1,10 @@
 package com.example.pawchain.animalAPI.service;
 
-import com.example.pawchain.animalAPI.config.AnimalApiProperties;
-import com.example.pawchain.animalAPI.dto.AnimalInfoRequest;
-import com.example.pawchain.animalAPI.dto.AnimalInfoResponse;
-import com.example.pawchain.animalAPI.exception.AnimalApiException;
-import com.example.pawchain.animalAPI.service.AnimalInfoService;
+import com.example.animalAPI.config.AnimalApiProperties;
+import com.example.animalAPI.dto.AnimalInfoRequest;
+import com.example.animalAPI.dto.AnimalInfoResponse;
+import com.example.animalAPI.exception.AnimalApiException;
+import com.example.animalAPI.service.AnimalInfoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

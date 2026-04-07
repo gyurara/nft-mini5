@@ -1,4 +1,4 @@
-package com.example.pawchain.animalAPI.exception;
+package com.example.animalAPI.exception;
 
 import org.springframework.http.HttpStatus;
 
