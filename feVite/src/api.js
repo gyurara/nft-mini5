@@ -4,6 +4,7 @@ const ANIMAL_API_BASE = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://loca
 async function request(baseUrl, path, options = {}) {
   const res = await fetch(`${baseUrl}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    credentials: 'include', // 세션 쿠키 전달
     ...options,
   });
 
@@ -27,6 +28,23 @@ function animalApiRequest(path, options) {
 }
 
 export const api = {
+  // 지갑 연결 시 세션 자동 생성 (wallet-based login)
+  walletLogin(walletAddress) {
+    return request(API_BASE, '/auth/wallet-login', {
+      method: 'POST',
+      body: JSON.stringify({ walletAddress }),
+      credentials: 'include',
+    });
+  },
+  walletLogout() {
+    return request(API_BASE, '/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+  },
+  getMe() {
+    return request(API_BASE, '/auth/me', { credentials: 'include' });
+  },
   registerPet(input) {
     return apiRequest('/register', { method: 'POST', body: JSON.stringify(input) });
   },
@@ -50,6 +68,9 @@ export const api = {
   },
   getTokenState(account) {
     return apiRequest(`/token-state/${encodeURIComponent(account)}`);
+  },
+  useNftCoupon(account) {
+    return apiRequest('/use-nft-coupon', { method: 'POST', body: JSON.stringify({ account }) });
   },
 };
 

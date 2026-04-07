@@ -1,6 +1,29 @@
 import { useState } from 'react';
 import { getContracts } from './web3.js';
 
+const NODE_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+
+async function sendApprovalRequest({ petSbtId, ownerAddress, message }) {
+  const res = await fetch(`${NODE_API}/vet/request-approval`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ petSbtId, ownerAddress, message }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || '요청 전송에 실패했습니다.');
+  return data;
+}
+
+async function checkAccess(ownerAddress, vetAddress) {
+  const res = await fetch(`${NODE_API}/vet/check-access/${encodeURIComponent(ownerAddress)}/${encodeURIComponent(vetAddress)}`, {
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || '연결 상태 확인 실패');
+  return data.connected;
+}
+
 export default function HospitalPage({ account, showToast }) {
   const [petSbtId, setPetSbtId] = useState('');
   const [medicalSbtId, setMedicalSbtId] = useState(null);
@@ -13,6 +36,48 @@ export default function HospitalPage({ account, showToast }) {
     diagnosis: '', treatment: '', hospital: '', memo: '',
     visitDate: new Date().toISOString().split('T')[0],
   });
+
+  // 권한 요청 상태
+  const [reqForm, setReqForm] = useState({ petSbtId: '', ownerAddress: '', message: '' });
+  const [reqLoading, setReqLoading] = useState(false);
+  const [reqSent, setReqSent] = useState(false);
+  const [connectedStatus, setConnectedStatus] = useState(null); // null | true | false
+
+  const handleSendRequest = async () => {
+    if (!reqForm.petSbtId.trim() || !reqForm.ownerAddress.trim()) {
+      showToast('반려동물 SBT ID와 보호자 지갑 주소를 입력해주세요.', 'error');
+      return;
+    }
+    setReqLoading(true);
+    setReqSent(false);
+    try {
+      await sendApprovalRequest({
+        petSbtId: reqForm.petSbtId.trim(),
+        ownerAddress: reqForm.ownerAddress.trim(),
+        message: reqForm.message.trim(),
+      });
+      setReqSent(true);
+      showToast('✅ 보호자에게 권한 요청을 전송했습니다!');
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setReqLoading(false);
+    }
+  };
+
+  const handleCheckAccess = async () => {
+    if (!reqForm.ownerAddress.trim()) {
+      showToast('보호자 지갑 주소를 입력해주세요.', 'error');
+      return;
+    }
+    try {
+      const connected = await checkAccess(reqForm.ownerAddress.trim(), account);
+      setConnectedStatus(connected);
+      showToast(connected ? '✅ 이미 연결된 보호자입니다.' : '아직 연결되지 않았습니다.');
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  };
 
   const lookupPassport = async () => {
     if (!petSbtId.trim()) { showToast('PetSBT ID를 입력해주세요.', 'error'); return; }
@@ -102,6 +167,72 @@ export default function HospitalPage({ account, showToast }) {
             <div className="wallet-label">병원 모드</div>
             <div className="wallet-addr">{account}</div>
           </div>
+        </div>
+
+        {/* 보호자 권한 요청 */}
+        <div style={{ background:"var(--card)", border:"1px solid var(--border)", borderRadius:12, padding:24, marginBottom:24 }}>
+          <div style={{ fontFamily:"'Space Mono',monospace", fontSize:11, letterSpacing:2, textTransform:"uppercase", color:"var(--muted)", marginBottom:16 }}>
+            🔐 보호자 진료 권한 요청
+          </div>
+          <div style={{ background:"rgba(124,58,237,0.06)", border:"1px solid rgba(124,58,237,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:16, fontSize:12, color:"var(--muted)", lineHeight:1.7 }}>
+            보호자에게 팝업으로 권한 요청이 전송됩니다. <strong style={{ color:"var(--accent2)" }}>수수료는 병원(현재 지갑)이 부담합니다.</strong>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            <div>
+              <div className="form-label">반려동물 SBT Token ID *</div>
+              <input
+                className="form-input"
+                placeholder="예: 31"
+                value={reqForm.petSbtId}
+                onChange={e => { setReqForm(f => ({ ...f, petSbtId: e.target.value })); setReqSent(false); setConnectedStatus(null); }}
+                style={{ fontFamily:"'Space Mono',monospace" }}
+              />
+            </div>
+            <div>
+              <div className="form-label">보호자 지갑 주소 *</div>
+              <input
+                className="form-input"
+                placeholder="0x..."
+                value={reqForm.ownerAddress}
+                onChange={e => { setReqForm(f => ({ ...f, ownerAddress: e.target.value })); setReqSent(false); setConnectedStatus(null); }}
+                style={{ fontFamily:"'Space Mono',monospace", fontSize:11 }}
+              />
+            </div>
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <div className="form-label">요청 메시지 (선택)</div>
+            <input
+              className="form-input"
+              placeholder="예: 정기검진을 위해 진료 기록 접근 권한을 요청합니다."
+              value={reqForm.message}
+              onChange={e => setReqForm(f => ({ ...f, message: e.target.value }))}
+            />
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button
+              onClick={handleCheckAccess}
+              style={{ padding:"0 18px", background:"var(--surface)", border:"1px solid var(--border)", color:"var(--muted)", cursor:"pointer", fontSize:11, fontFamily:"'Space Mono',monospace", whiteSpace:"nowrap", borderRadius:0 }}
+            >
+              연결 확인
+            </button>
+            <button
+              onClick={handleSendRequest}
+              disabled={reqLoading}
+              style={{ flex:1, padding:"0 24px", height:50, background:"var(--accent2)", border:"none", color:"#fff", cursor:"pointer", borderRadius:0, fontSize:12, fontFamily:"'Space Mono',monospace", clipPath:"polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)", opacity: reqLoading ? 0.6 : 1 }}
+            >
+              {reqLoading ? "전송 중..." : "📨 권한 요청 전송"}
+            </button>
+          </div>
+          {connectedStatus !== null && (
+            <div style={{ marginTop:10, padding:"8px 12px", borderRadius:6, background: connectedStatus ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", border:`1px solid ${connectedStatus ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)"}`, fontSize:12, fontFamily:"'Space Mono',monospace", color: connectedStatus ? "var(--accent3)" : "#ef4444" }}>
+              {connectedStatus ? "✅ 이미 연결된 보호자입니다." : "❌ 아직 연결되지 않았습니다."}
+            </div>
+          )}
+          {reqSent && (
+            <div style={{ marginTop:10, padding:"8px 12px", borderRadius:6, background:"rgba(124,58,237,0.1)", border:"1px solid rgba(124,58,237,0.3)", fontSize:12, fontFamily:"'Space Mono',monospace", color:"var(--accent2)" }}>
+              ✅ 권한 요청이 전송되었습니다. 보호자의 승인을 기다리고 있습니다.
+            </div>
+          )}
         </div>
 
         {/* 펫 의료 여권 조회 */}
