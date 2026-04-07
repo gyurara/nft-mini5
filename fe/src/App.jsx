@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import './styles.css';
 import { usePetServiceApp } from './services.js';
-import { HomePage, RegisterPage, MyPage } from './pages.jsx';
+import { HomePage, RegisterPage, MyPage, DraggableNftDetail } from './pages.jsx';
 import { GoodsPage } from './goods.jsx';
 
 /* ───────────── Toast ───────────── */
@@ -58,6 +58,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('petchain:theme') || 'dark');
   const [page, setPage] = useState(() => localStorage.getItem('petchain:page') || 'home');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [selectedNft, setSelectedNft] = useState(null);
   const toastTimer = useRef(null);
 
   const {
@@ -121,7 +122,7 @@ export default function App() {
   const pages = {
     home:     <HomePage {...commonProps} />,
     register: <RegisterPage {...commonProps} />,
-    mypage:   <MyPage {...commonProps} />,
+    mypage:   <MyPage {...commonProps} selectedNft={selectedNft} setSelectedNft={setSelectedNft} />,
     goods:    <GoodsPage {...commonProps} />,
   };
 
@@ -138,6 +139,13 @@ export default function App() {
       />
       {pages[page] || pages.home}
       <Toast toast={toast} />
+      {selectedNft && (
+        <DraggableNftDetail
+          nft={selectedNft}
+          profile={state.profile}
+          onClose={() => setSelectedNft(null)}
+        />
+      )}
     </>
   );
 }

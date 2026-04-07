@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { UNLOCK_TIERS, DISCOUNT_PER_COUPON, createRealGateways } from './services.js';
 
 const EMOJI = { '강아지': '🐶', '고양이': '🐱', '토끼': '🐰', '햄스터': '🐹' };
+
 
 /* ───────────── MedicalCalendar ───────────── */
 function MedicalCalendar({ records, selectedDate, onSelectDate }) {
@@ -225,7 +227,8 @@ return (
 
 
       {/* 캘린더 + 기록 모달 */}
-      <div className={"modal-overlay"+(calendarModal?" open":"")} onClick={() => setCalendarModal(false)}>
+      {createPortal(
+      <div className={"modal-overlay"+(calendarModal?" open":"")} onClick={() => setCalendarModal(false)} style={{ zIndex:99999 }}>
         <div onClick={e => e.stopPropagation()} style={{ background:"var(--card)", border:"1px solid var(--border)", borderRadius:16, padding:24, boxShadow:"0 24px 64px rgba(0,0,0,.5)", position:"relative", width:"90%", maxWidth:800, maxHeight:"85vh", overflowY:"auto" }}>
           <button onClick={() => setCalendarModal(false)} style={{ position:"absolute", top:12, right:12, background:"none", border:"none", color:"var(--muted)", fontSize:18, cursor:"pointer" }}>✕</button>
           <div style={{ fontFamily:"'Space Mono',monospace", fontSize:11, letterSpacing:2, textTransform:"uppercase", color:"var(--muted)", marginBottom:16 }}>📋 진료 기록</div>
@@ -283,7 +286,9 @@ return (
             </div>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
+      )}
 
       {/* 병원 권한 부여 모달 */}
       <div className={"modal-overlay"+(grantModal?" open":"")} onClick={() => setGrantModal(false)}>
@@ -583,8 +588,8 @@ export function DraggableNftDetail({ nft, profile, onClose }) {
   };
 
   if (!nft) return null;
-  return (
-    <div style={{ position:'fixed', left:pos.x, top:pos.y, zIndex:500, width:380, background:'var(--card)', border:'1px solid var(--border)', boxShadow:'0 24px 64px rgba(0,0,0,.5)', animation:'modal-in .25s ease' }}>
+  return createPortal(
+    <div style={{ position:'fixed', left:pos.x, top:pos.y, zIndex:99999, width:380, background:'var(--card)', border:'1px solid var(--border)', boxShadow:'0 24px 64px rgba(0,0,0,.5)', animation:'modal-in .25s ease' }}>
       <div onMouseDown={onMouseDown} style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'grab', userSelect:'none', background:'var(--surface)' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ color:'var(--muted)', fontSize:12 }}>⠿⠿</span>
@@ -621,7 +626,8 @@ export function DraggableNftDetail({ nft, profile, onClose }) {
           <a href={`https://sepolia.etherscan.io/tx/${nft.transactionHash}`} target="_blank" rel="noopener noreferrer" className="btn-modal-mint" style={{ display:'block', textAlign:'center', textDecoration:'none', marginTop:14 }}>Etherscan에서 보기 🔗</a>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -956,8 +962,6 @@ export function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectW
         )}
       </div>
 
-      {selectedNft && <DraggableNftDetail nft={selectedNft} profile={profile} onClose={() => setSelectedNft(null)} />}
-
       <div className={`modal-overlay${sbtModal ? ' open' : ''}`}>
         <div className="modal">
           <button className="modal-close" onClick={closeModal}>✕</button>
@@ -1124,6 +1128,7 @@ export function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectW
           )}
         </div>
       </div>
+      {selectedNft && <DraggableNftDetail nft={selectedNft} profile={profile} onClose={() => setSelectedNft(null)} />}
     </div>
   );
 }
