@@ -23,9 +23,14 @@ dependencies {
     testRuntimeOnly 'com.h2database:h2'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
     // AWS SDK v2 - S3 이미지 업로드
     implementation platform('software.amazon.awssdk:bom:2.25.23')
     implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:sts'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }

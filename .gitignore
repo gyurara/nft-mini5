@@ -12,6 +12,7 @@ build/
 out/
 coverage/
 .gradle/
+**/.gradle-home/
 
 # Solidity / EVM tool outputs
 artifacts/
