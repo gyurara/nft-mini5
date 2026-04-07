@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getContracts } from './web3.js';
 
 const NODE_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
@@ -32,52 +32,32 @@ export default function HospitalPage({ account, showToast }) {
   const [permission, setPermission] = useState(null);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
+  const updatesChannelRef = useRef(null);
+  const initialLookupDone = useRef(false);
   const [form, setForm] = useState({
     diagnosis: '', treatment: '', hospital: '', memo: '',
     visitDate: new Date().toISOString().split('T')[0],
   });
 
-  // 권한 요청 상태
-  const [reqForm, setReqForm] = useState({ petSbtId: '', ownerAddress: '', message: '' });
-  const [reqLoading, setReqLoading] = useState(false);
-  const [reqSent, setReqSent] = useState(false);
-  const [connectedStatus, setConnectedStatus] = useState(null); // null | true | false
 
-  const handleSendRequest = async () => {
-    if (!reqForm.petSbtId.trim() || !reqForm.ownerAddress.trim()) {
-      showToast('반려동물 SBT ID와 보호자 지갑 주소를 입력해주세요.', 'error');
-      return;
+  useEffect(() => {
+    const saved = localStorage.getItem('hospital:lastPetSbtId');
+    if (saved) setPetSbtId(saved);
+    if (typeof BroadcastChannel !== 'undefined') {
+      updatesChannelRef.current = new BroadcastChannel('medical-updates');
     }
-    setReqLoading(true);
-    setReqSent(false);
-    try {
-      await sendApprovalRequest({
-        petSbtId: reqForm.petSbtId.trim(),
-        ownerAddress: reqForm.ownerAddress.trim(),
-        message: reqForm.message.trim(),
-      });
-      setReqSent(true);
-      showToast('✅ 보호자에게 권한 요청을 전송했습니다!');
-    } catch (e) {
-      showToast(e.message, 'error');
-    } finally {
-      setReqLoading(false);
-    }
-  };
+    return () => {
+      updatesChannelRef.current?.close?.();
+      updatesChannelRef.current = null;
+    };
+  }, []);
 
-  const handleCheckAccess = async () => {
-    if (!reqForm.ownerAddress.trim()) {
-      showToast('보호자 지갑 주소를 입력해주세요.', 'error');
-      return;
+  useEffect(() => {
+    if (account && petSbtId && !initialLookupDone.current) {
+      initialLookupDone.current = true;
+      lookupPassport();
     }
-    try {
-      const connected = await checkAccess(reqForm.ownerAddress.trim(), account);
-      setConnectedStatus(connected);
-      showToast(connected ? '✅ 이미 연결된 보호자입니다.' : '아직 연결되지 않았습니다.');
-    } catch (e) {
-      showToast(e.message, 'error');
-    }
-  };
+  }, [account, petSbtId]);
 
   const lookupPassport = async () => {
     if (!petSbtId.trim()) { showToast('PetSBT ID를 입력해주세요.', 'error'); return; }
@@ -92,6 +72,7 @@ export default function HospitalPage({ account, showToast }) {
       }
       const mId = Number(mSbtId);
       setMedicalSbtId(mId);
+      localStorage.setItem('hospital:lastPetSbtId', petSbtId);
 
       // 여권 정보
       const info = await medicalPassport.getPassportInfo(mId);
@@ -150,6 +131,11 @@ export default function HospitalPage({ account, showToast }) {
 
       setRecords(prev => [{ visitDate, diagnosis: form.diagnosis, treatment: form.treatment, hospital: form.hospital, memo: form.memo }, ...prev]);
       setForm({ diagnosis: '', treatment: '', hospital: '', memo: '', visitDate: new Date().toISOString().split('T')[0] });
+
+      const event = { type: 'record-added', medicalSbtId, petSbtId: Number(petSbtId) || null, timestamp: Date.now() };
+      localStorage.setItem('medical-record-updated', JSON.stringify(event));
+      updatesChannelRef.current?.postMessage?.(event);
+
 
       // 권한 업데이트
       if (permission && permission.remainingWrites !== 4294967295) {
