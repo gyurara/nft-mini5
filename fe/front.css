@@ -1,0 +1,374 @@
+
+:root {
+  --accent:#ff6b35; --accent2:#7c3aed; --accent3:#10b981; --gold:#f59e0b;
+}
+[data-theme="dark"] {
+  --bg:#0a0a0f; --surface:#111118; --card:#16161f; --border:#2a2a3a;
+  --text:#e8e8f0; --muted:#6b6b85; --nav-bg:rgba(10,10,15,0.88); --input-bg:#16161f; --shadow:rgba(0,0,0,0.5);
+}
+[data-theme="light"] {
+  --bg:#f5f4f0; --surface:#eeecea; --card:#ffffff; --border:#d8d5cf;
+  --text:#1a1a26; --muted:#8a8a9a; --nav-bg:rgba(245,244,240,0.92); --input-bg:#ffffff; --shadow:rgba(0,0,0,0.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh;overflow-x:hidden;transition:background .35s,color .35s;}
+[data-theme="dark"] body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.6;}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:64px;background:var(--nav-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);transition:background .35s;}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;color:var(--accent);cursor:pointer;}
+.logo span{color:var(--text);}
+.nav-links{display:flex;gap:20px;align-items:center;}
+.nav-links a{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);text-decoration:none;transition:color .2s;cursor:pointer;}
+.nav-links a:hover,.nav-links a.active{color:var(--text);}
+.nav-right{display:flex;gap:12px;align-items:center;}
+
+/* theme toggle */
+.theme-wrap{display:flex;align-items:center;gap:6px;}
+.theme-lbl{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.theme-toggle{width:44px;height:24px;border-radius:12px;background:var(--border);border:none;cursor:pointer;position:relative;transition:background .3s;flex-shrink:0;}
+.theme-toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--accent);transition:transform .3s;}
+[data-theme="light"] .theme-toggle::after{transform:translateX(20px);}
+
+.btn-connect{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:10px 22px;cursor:pointer;transition:all .2s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);}
+.btn-connect:hover{background:#ff8555;}
+.btn-connect.connected{background:var(--accent3);}
+
+/* PAGES */
+.page{display:none;position:relative;z-index:1;}
+.page.active{display:block;}
+
+/* HERO */
+.hero{min-height:calc(100vh - 64px);display:grid;grid-template-columns:1fr 1fr;position:relative;overflow:hidden;}
+.hero-left{display:flex;flex-direction:column;justify-content:center;padding:80px 60px 80px 80px;}
+.hero-tag{display:inline-flex;align-items:center;gap:8px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:32px;}
+.hero-tag::before{content:'';width:24px;height:1px;background:var(--accent);}
+.hero-h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(72px,8vw,120px);line-height:.92;letter-spacing:2px;margin-bottom:32px;}
+.hero-h1 em{color:var(--accent);font-style:normal;}
+.hero-sub{font-size:15px;line-height:1.8;color:var(--muted);max-width:440px;margin-bottom:48px;}
+.hero-ctas{display:flex;gap:16px;align-items:center;}
+.btn-primary{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:16px 36px;cursor:pointer;transition:all .2s;clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);}
+.btn-primary:hover{background:#ff8555;transform:translateY(-2px);box-shadow:0 12px 40px rgba(255,107,53,.3);}
+.btn-outline{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;background:transparent;color:var(--text);border:1px solid var(--border);padding:16px 36px;cursor:pointer;transition:all .2s;}
+.btn-outline:hover{border-color:var(--text);}
+.hero-right{position:relative;background:var(--surface);display:flex;align-items:center;justify-content:center;border-left:1px solid var(--border);overflow:hidden;}
+.hero-right::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 60% 40%,rgba(124,58,237,.15) 0%,transparent 70%),radial-gradient(ellipse at 30% 70%,rgba(255,107,53,.1) 0%,transparent 60%);}
+.floating-card{position:relative;z-index:2;background:var(--card);border:1px solid var(--border);width:300px;padding:24px;animation:float 4s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.card-badge{display:inline-block;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;background:rgba(255,107,53,.15);color:var(--accent);padding:4px 10px;margin-bottom:16px;text-transform:uppercase;}
+.card-pet-img{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#1e1e2e,#2a1a3e);display:flex;align-items:center;justify-content:center;font-size:80px;margin-bottom:16px;position:relative;overflow:hidden;}
+.card-pet-img::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(255,107,53,.15),transparent);}
+.card-name{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;}
+.card-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:12px;border-top:1px solid var(--border);}
+.card-meta-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.card-meta-val{font-family:'Space Mono',monospace;font-size:12px;color:var(--accent3);}
+.sbt-tag{position:absolute;top:16px;right:16px;background:var(--accent2);color:#fff;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:4px 8px;text-transform:uppercase;}
+
+/* STATS */
+.stats-bar{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);position:relative;z-index:1;}
+.stat-item{padding:28px 40px;border-right:1px solid var(--border);}
+.stat-item:last-child{border-right:none;}
+.stat-num{font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--accent);letter-spacing:2px;}
+.stat-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:4px;}
+
+/* SECTION */
+.section{padding:100px 80px;position:relative;z-index:1;}
+.section-tag{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:12px;}
+.section-tag::after{content:'';flex:1;height:1px;background:var(--border);max-width:60px;}
+.section-h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,5vw,72px);letter-spacing:2px;margin-bottom:16px;}
+.section-sub{color:var(--muted);font-size:15px;line-height:1.8;max-width:520px;margin-bottom:60px;}
+.flow-steps{display:flex;gap:0;overflow-x:auto;padding-bottom:16px;}
+.flow-step{flex:0 0 auto;width:190px;background:var(--card);border:1px solid var(--border);padding:28px 22px;position:relative;}
+.flow-step:not(:last-child)::after{content:'→';position:absolute;right:-14px;top:50%;transform:translateY(-50%);color:var(--accent);font-size:18px;z-index:2;}
+.flow-num{font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--border);line-height:1;margin-bottom:12px;}
+.flow-icon{font-size:24px;margin-bottom:10px;}
+.flow-name{font-size:14px;font-weight:500;margin-bottom:4px;}
+.flow-desc{font-size:12px;color:var(--muted);}
+.bm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;}
+.bm-card{background:var(--card);border:1px solid var(--border);padding:32px 28px;position:relative;overflow:hidden;transition:border-color .2s;}
+.bm-card:hover{border-color:var(--accent);}
+.bm-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.bm-card:nth-child(1)::before{background:var(--accent);}
+.bm-card:nth-child(2)::before{background:var(--accent2);}
+.bm-card:nth-child(3)::before{background:var(--accent3);}
+.bm-num{font-family:'Bebas Neue',sans-serif;font-size:64px;opacity:.08;position:absolute;top:16px;right:20px;line-height:1;}
+.bm-icon{font-size:32px;margin-bottom:20px;}
+.bm-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:1px;margin-bottom:8px;}
+.bm-desc{font-size:14px;color:var(--muted);line-height:1.7;}
+
+/* REGISTER */
+.register-layout{display:grid;grid-template-columns:1fr 1fr;gap:60px;padding:80px;position:relative;z-index:1;}
+.form-title{font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:2px;margin-bottom:8px;}
+.form-sub{color:var(--muted);font-size:14px;margin-bottom:40px;line-height:1.7;}
+.form-group{margin-bottom:24px;}
+.form-label{display:block;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.form-input,.form-select{width:100%;background:var(--input-bg);border:1px solid var(--border);color:var(--text);padding:14px 18px;font-family:'Noto Sans KR',sans-serif;font-size:14px;outline:none;transition:border-color .2s;appearance:none;}
+.form-input:focus,.form-select:focus{border-color:var(--accent);}
+.form-input::placeholder{color:var(--muted);}
+.upload-area{border:1px dashed var(--border);background:var(--card);padding:40px;text-align:center;cursor:pointer;transition:all .2s;}
+.upload-area:hover{border-color:var(--accent);background:rgba(255,107,53,.05);}
+.upload-icon{font-size:36px;margin-bottom:12px;}
+.upload-text{font-size:14px;color:var(--muted);}
+.upload-text strong{color:var(--accent);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.btn-full{width:100%;padding:18px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:3px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;cursor:pointer;transition:all .2s;margin-top:8px;clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);}
+.btn-full:hover{background:#ff8555;box-shadow:0 16px 48px rgba(255,107,53,.3);}
+.preview-section{position:sticky;top:80px;}
+.preview-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:24px;}
+.preview-card{background:var(--card);border:1px solid var(--border);padding:32px;position:relative;}
+.preview-card::before{content:'SBT';position:absolute;top:16px;right:16px;background:var(--accent2);color:#fff;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:4px 8px;}
+.preview-img{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#1e1e2e,#2a1a3e);display:flex;align-items:center;justify-content:center;font-size:100px;margin-bottom:24px;position:relative;overflow:hidden;}
+.preview-name{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;margin-bottom:4px;}
+.preview-breed{font-size:13px;color:var(--muted);margin-bottom:20px;}
+.preview-rows{display:flex;flex-direction:column;gap:12px;}
+.preview-row{display:flex;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--border);font-size:13px;}
+.preview-row:last-child{border-bottom:none;padding-bottom:0;}
+.preview-row-key{color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;}
+.chain-badge{margin-top:20px;padding:12px 16px;background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);display:flex;align-items:center;gap:10px;}
+.chain-dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);animation:pulse 1.5s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.chain-text{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent2);letter-spacing:1px;}
+
+/* MYPAGE */
+.mypage-layout{padding:60px 80px;position:relative;z-index:1;}
+.mypage-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border);}
+.wallet-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+.wallet-addr{font-family:'Space Mono',monospace;font-size:14px;color:var(--accent3);}
+.mypage-grid{display:grid;grid-template-columns:320px 1fr;gap:40px;}
+.pet-card-main{background:var(--card);border:1px solid var(--border);padding:28px;position:sticky;top:80px;height:fit-content;}
+.pet-card-main-img{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;font-size:80px;position:relative;margin-bottom:24px;overflow:hidden;}
+.pet-card-main-img::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(16,185,129,.1),transparent);}
+.verified-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,.15);color:var(--accent3);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:5px 10px;margin-bottom:12px;text-transform:uppercase;}
+.pet-main-name{font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:2px;}
+.pet-main-breed{font-size:13px;color:var(--muted);margin-bottom:20px;}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;}
+.info-cell{background:var(--surface);padding:12px 14px;}
+.info-cell-key{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.info-cell-val{font-size:13px;}
+.sbt-block{padding:14px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.25);display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+.sbt-icon{font-size:20px;}
+.sbt-info-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--accent2);letter-spacing:1px;text-transform:uppercase;}
+.sbt-info-val{font-size:12px;color:var(--muted);margin-top:2px;}
+.holder-section{margin-top:16px;padding:20px;background:var(--surface);border:1px solid var(--border);}
+.holder-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.holder-title::before{content:'★';}
+.holder-features{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.holder-feat{background:var(--card);border:1px solid var(--border);padding:14px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.holder-feat:hover{border-color:var(--gold);}
+.holder-feat-icon{font-size:20px;margin-bottom:6px;}
+.holder-feat-name{font-size:13px;font-weight:500;margin-bottom:2px;}
+.holder-feat-desc{font-size:11px;color:var(--muted);}
+.lock-overlay{display:none;position:absolute;inset:0;background:rgba(10,10,15,.88);align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;flex-direction:column;gap:4px;}
+.locked .lock-overlay{display:flex;}
+.nft-section-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;}
+.nft-section-title{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;}
+.btn-mint{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:12px 24px;cursor:pointer;transition:all .2s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);}
+.btn-mint:hover{background:#ff8555;}
+.nft-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.nft-item{background:var(--card);border:1px solid var(--border);overflow:hidden;transition:all .25s;cursor:pointer;position:relative;}
+.nft-item:hover{border-color:var(--accent);transform:translateY(-4px);box-shadow:0 20px 40px var(--shadow);}
+.nft-item-img{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:56px;position:relative;overflow:hidden;}
+.nft-type-badge{position:absolute;top:8px;left:8px;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;padding:4px 8px;text-transform:uppercase;}
+.badge-birthday{background:rgba(245,158,11,.2);color:var(--gold);}
+.badge-adoption{background:rgba(16,185,129,.2);color:var(--accent3);}
+.badge-limited{background:rgba(255,107,53,.2);color:var(--accent);}
+.nft-item-body{padding:16px;}
+.nft-item-name{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;margin-bottom:4px;}
+.nft-item-meta{display:flex;justify-content:space-between;align-items:center;}
+.nft-item-edition{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;}
+.nft-item-num{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);}
+
+/* HOLDER */
+.gate-banner{background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(255,107,53,.1));border-bottom:1px solid var(--border);padding:28px 80px;display:flex;align-items:center;justify-content:space-between;gap:24px;}
+.gate-left{display:flex;align-items:center;gap:20px;}
+.gate-nft-thumb{width:56px;height:56px;background:linear-gradient(135deg,#1a1226,#2d1f3d);display:flex;align-items:center;justify-content:center;font-size:28px;border:1px solid var(--accent2);flex-shrink:0;}
+.gate-info-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.gate-info-val{font-size:15px;font-weight:500;margin-top:3px;}
+.gate-right{display:flex;gap:12px;align-items:center;}
+.gate-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:var(--accent3);padding:8px 16px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;}
+.gate-count{font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--accent);letter-spacing:2px;}
+.gate-count-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+.holder-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);padding:0 80px;}
+.holder-tab{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:18px 22px;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;}
+.holder-tab:hover{color:var(--text);}
+.holder-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.holder-tab-content{display:none;padding:60px 80px;}
+.holder-tab-content.active{display:block;}
+.verify-layout{display:grid;grid-template-columns:1fr 1fr;gap:48px;}
+.verify-card{background:var(--card);border:1px solid var(--border);padding:28px;}
+.verify-card-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:1px;margin-bottom:18px;}
+.nft-verify-list{display:flex;flex-direction:column;gap:10px;}
+.nft-verify-item{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);padding:12px 16px;}
+.nft-verify-thumb{width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;}
+.nft-verify-info{flex:1;}
+.nft-verify-name{font-size:13px;font-weight:500;}
+.nft-verify-id{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:2px;}
+.nft-verify-status{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;flex-shrink:0;}
+.status-verified{background:rgba(16,185,129,.15);color:var(--accent3);}
+.access-matrix{display:flex;flex-direction:column;gap:10px;}
+.access-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);padding:12px 16px;}
+.access-row-left{display:flex;align-items:center;gap:12px;}
+.access-row-icon{font-size:20px;}
+.access-row-name{font-size:13px;font-weight:500;}
+.access-row-req{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;}
+.access-pill{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:5px 12px;}
+.pill-open{background:rgba(16,185,129,.12);color:var(--accent3);border:1px solid rgba(16,185,129,.25);}
+.pill-locked{background:rgba(107,107,133,.12);color:var(--muted);border:1px solid var(--border);}
+.pmr{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--border);font-size:13px;}
+.pmr:last-child{border-bottom:none;padding-bottom:0;}
+.pmr-key{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+
+/* GOODS */
+.goods-layout{display:grid;grid-template-columns:1fr 1fr;gap:48px;}
+.goods-grid-sel{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
+.goods-option{background:var(--card);border:2px solid var(--border);padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+.goods-option:hover{border-color:var(--muted);}
+.goods-option.sel{border-color:var(--accent);background:rgba(255,107,53,.07);}
+.goods-option-badge{position:absolute;top:6px;right:6px;background:var(--accent);color:#fff;font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1px;padding:2px 5px;text-transform:uppercase;}
+.goods-option-icon{font-size:32px;margin-bottom:6px;}
+.goods-option-name{font-size:12px;font-weight:500;margin-bottom:2px;}
+.goods-option-price{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);}
+.goods-config{display:flex;flex-direction:column;gap:14px;}
+.qty-row{display:flex;align-items:center;}
+.qty-btn{width:36px;height:36px;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.qty-val{width:48px;text-align:center;background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:14px;padding:6px 0;}
+.btn-order{width:100%;padding:16px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:3px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;cursor:pointer;transition:all .2s;clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);}
+.btn-order:hover{background:#ff8555;box-shadow:0 12px 40px rgba(255,107,53,.3);}
+.goods-img-upload-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;}
+.goods-img-thumb{width:64px;height:64px;border:2px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:26px;transition:border-color .2s;position:relative;overflow:hidden;flex-shrink:0;background:var(--surface);}
+.goods-img-thumb:hover{border-color:var(--muted);}
+.goods-img-thumb.sel-img{border-color:var(--accent);}
+.goods-img-thumb img{width:100%;height:100%;object-fit:cover;}
+.goods-add-img{width:64px;height:64px;border:2px dashed var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--muted);transition:all .2s;flex-shrink:0;background:var(--surface);}
+.goods-add-img:hover{border-color:var(--accent);color:var(--accent);}
+.goods-preview{position:sticky;top:80px;}
+.preview-panel{background:var(--card);border:1px solid var(--border);padding:32px;}
+.preview-panel-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:20px;}
+.mockup-area{width:100%;aspect-ratio:1;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:20px;overflow:hidden;}
+.mockup-bg-pattern{position:absolute;inset:0;background-image:repeating-linear-gradient(45deg,transparent,transparent 20px,rgba(255,107,53,.04) 20px,rgba(255,107,53,.04) 21px);}
+.mockup-product{font-size:80px;position:relative;z-index:2;}
+.mockup-product img{width:120px;height:120px;object-fit:contain;}
+.mockup-nft-stamp{position:absolute;bottom:16px;right:16px;z-index:3;background:rgba(10,10,15,.85);border:1px solid var(--accent);padding:6px 10px;font-family:'Space Mono',monospace;font-size:8px;color:var(--accent);letter-spacing:1px;}
+[data-theme="light"] .mockup-nft-stamp{background:rgba(245,244,240,.92);}
+.preview-meta{display:flex;flex-direction:column;gap:10px;}
+.preview-total{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--accent);letter-spacing:2px;}
+.nft-source-badge{margin-top:16px;padding:12px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.25);display:flex;align-items:center;gap:10px;}
+.nft-source-icon{font-size:18px;}
+.nft-source-text{font-family:'Space Mono',monospace;font-size:9px;color:var(--accent2);letter-spacing:1px;line-height:1.5;}
+
+/* DOWNLOAD */
+.download-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.dl-card{background:var(--card);border:1px solid var(--border);overflow:hidden;transition:all .25s;cursor:pointer;position:relative;}
+.dl-card:hover{border-color:var(--accent);transform:translateY(-4px);}
+.dl-card-img{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:56px;position:relative;overflow:hidden;}
+.dl-overlay{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;transition:opacity .2s;}
+.dl-card:hover .dl-overlay{opacity:1;}
+.dl-btn-i{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:10px 20px;cursor:pointer;}
+.dl-card-body{padding:16px;}
+.dl-card-name{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;margin-bottom:4px;}
+.dl-card-meta{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;}
+.dl-res{color:var(--accent3);}
+.dl-lock{position:absolute;inset:0;background:rgba(10,10,15,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+[data-theme="light"] .dl-lock{background:rgba(245,244,240,.92);}
+
+/* MINING */
+.mining-header{padding:48px 80px 32px;display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--border);}
+.mining-layout{display:grid;grid-template-columns:1fr 380px;gap:40px;padding:48px 80px;}
+.mining-arena{background:var(--card);border:1px solid var(--border);overflow:hidden;position:relative;display:flex;flex-direction:column;min-height:480px;}
+.arena-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.arena-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;}
+.arena-status{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+.arena-canvas-wrap{flex:1;position:relative;overflow:hidden;min-height:360px;}
+#miningCanvas{display:block;width:100%;height:100%;}
+.mining-panel{display:flex;flex-direction:column;gap:16px;}
+.mine-card{background:var(--card);border:1px solid var(--border);padding:22px;}
+.mine-card-title{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
+.mine-big-num{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--accent);letter-spacing:2px;line-height:1;}
+.mine-big-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px;}
+.mine-bar-wrap{background:var(--border);height:6px;margin-top:12px;}
+.mine-bar{height:6px;background:var(--accent);width:0%;transition:width .4s;}
+.mine-bar.full{background:var(--accent3);}
+.mine-rows{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.mine-row{display:flex;justify-content:space-between;font-size:12px;padding:8px 0;border-bottom:1px solid var(--border);}
+.mine-row:last-child{border-bottom:none;}
+.mine-row-key{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+.mine-row-val{font-size:12px;}
+.mine-row-val.g{color:var(--accent3);}
+.mine-row-val.o{color:var(--accent);}
+.mine-pet-sel{display:flex;gap:8px;flex-wrap:wrap;}
+.mine-pet-btn{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);padding:9px 12px;cursor:pointer;transition:all .2s;font-size:13px;color:var(--text);}
+.mine-pet-btn:hover{border-color:var(--muted);}
+.mine-pet-btn.active{border-color:var(--accent);color:var(--accent);}
+.mine-pet-icon{font-size:18px;}
+.mine-actions{display:flex;gap:10px;}
+.btn-mine-go{flex:1;padding:14px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;cursor:pointer;transition:all .2s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);}
+.btn-mine-go:hover{background:#ff8555;}
+.btn-mine-stop{flex:1;padding:14px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:transparent;color:var(--muted);border:1px solid var(--border);cursor:pointer;transition:all .2s;}
+.btn-mine-stop:hover{border-color:var(--text);color:var(--text);}
+.mine-guide{background:rgba(124,58,237,.06);border:1px solid rgba(124,58,237,.25);padding:18px 20px;}
+.mine-guide-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:12px;}
+.mine-guide-step{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:6px;}
+.mine-guide-num{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent2);flex-shrink:0;width:16px;}
+.claimed-list{display:flex;flex-direction:column;gap:8px;max-height:180px;overflow-y:auto;}
+.claimed-empty{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;text-align:center;padding:16px;}
+.claimed-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);padding:10px 14px;animation:slide-in .3s ease;}
+@keyframes slide-in{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+.claimed-icon{font-size:18px;flex-shrink:0;}
+.claimed-info{flex:1;}
+.claimed-name{font-size:12px;font-weight:500;}
+.claimed-id{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);}
+.claimed-badge{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;padding:3px 7px;background:rgba(16,185,129,.15);color:var(--accent3);text-transform:uppercase;}
+
+/* MODALS */
+.modal-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--card);border:1px solid var(--border);width:500px;max-width:95vw;padding:40px;position:relative;animation:modal-in .3s ease;max-height:90vh;overflow-y:auto;}
+@keyframes modal-in{from{opacity:0;transform:scale(.95) translateY(20px)}to{opacity:1;transform:none}}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;}
+.modal-close:hover{color:var(--text);}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;margin-bottom:8px;}
+.modal-sub{color:var(--muted);font-size:13px;margin-bottom:28px;}
+.nft-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
+.nft-type-option{background:var(--surface);border:2px solid var(--border);padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;}
+.nft-type-option:hover,.nft-type-option.selected{border-color:var(--accent);background:rgba(255,107,53,.08);}
+.nft-type-option-icon{font-size:28px;margin-bottom:6px;}
+.nft-type-option-name{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+.supply-info{padding:14px 16px;background:var(--surface);border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-family:'Space Mono',monospace;font-size:11px;margin-bottom:24px;}
+.supply-label{color:var(--muted);letter-spacing:1px;}
+.supply-val{color:var(--accent);}
+.prog-wrap{margin-top:8px;background:var(--border);height:3px;width:200px;}
+.prog-fill{height:3px;background:var(--accent);width:30%;}
+.btn-modal-mint{width:100%;padding:16px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:3px;text-transform:uppercase;background:var(--accent);color:#fff;border:none;cursor:pointer;transition:all .2s;clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);}
+.btn-modal-mint:hover{background:#ff8555;}
+.mint-success{display:none;text-align:center;padding:20px 0;}
+.mint-success.show{display:block;}
+.success-icon{font-size:64px;margin-bottom:16px;animation:bounce .5s ease;}
+@keyframes bounce{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+.success-title{font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:2px;color:var(--accent3);margin-bottom:8px;}
+.success-sub{color:var(--muted);font-size:14px;line-height:1.7;}
+.tx-hash{margin-top:20px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);word-break:break-all;}
+
+/* TOAST */
+.toast{position:fixed;bottom:32px;right:32px;z-index:400;background:var(--card);border:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px;transform:translateY(100px);opacity:0;transition:all .3s;max-width:360px;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast-dot{width:8px;height:8px;border-radius:50%;background:var(--accent3);flex-shrink:0;}
+.toast-text{font-size:13px;}
+.toast-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .hero{grid-template-columns:1fr;}.hero-right{display:none;}
+  .register-layout,.mypage-grid,.verify-layout,.goods-layout,.mining-layout{grid-template-columns:1fr;}
+  .stats-bar{grid-template-columns:repeat(2,1fr);}
+  .nft-grid,.bm-grid{grid-template-columns:repeat(2,1fr);}
+  .download-grid{grid-template-columns:repeat(2,1fr);}
+  nav,.section,.mypage-layout,.mining-header{padding-left:20px;padding-right:20px;}
+  .register-layout{padding:40px 20px;}
+  .gate-banner,.holder-tab-content{padding:20px;}
+  .holder-tabs{padding:0 20px;}
+  .mining-layout{padding:30px 20px;}
+  .nav-links{gap:12px;}
+}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);}

@@ -1,0 +1,32 @@
+package com.example.animalAPI.controller;
+
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.animalAPI.dto.AnimalInfoRequest;
+import com.example.animalAPI.dto.AnimalInfoResponse;
+import com.example.animalAPI.service.AnimalInfoService;
+
+@RestController
+@RequestMapping("/api/animal")
+@CrossOrigin(origins = "*")
+public class AnimalInfoController {
+    private final AnimalInfoService animalInfoService;
+
+    public AnimalInfoController(AnimalInfoService animalInfoService) {
+        this.animalInfoService = animalInfoService;
+    }
+
+    @GetMapping("/info")
+    public AnimalInfoResponse getAnimalInfo(
+        @RequestParam("dog_reg_no") String dogRegNo,
+        @RequestParam("rfid_cd") String rfidCd,
+        @RequestParam("owner_nm") String ownerNm,
+        @RequestParam("owner_birth") String ownerBirth
+    ) {
+        return animalInfoService.getAnimalInfo(new AnimalInfoRequest(dogRegNo, rfidCd, ownerNm, ownerBirth));
+    }
+}
