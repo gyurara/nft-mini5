@@ -1,9 +1,9 @@
-package com.example.pawchain.animalAPI.service;
+package com.example.animalAPI.service;
 
-import com.example.pawchain.animalAPI.config.AnimalApiProperties;
-import com.example.pawchain.animalAPI.dto.AnimalInfoRequest;
-import com.example.pawchain.animalAPI.dto.AnimalInfoResponse;
-import com.example.pawchain.animalAPI.exception.AnimalApiException;
+import com.example.animalAPI.config.AnimalApiProperties;
+import com.example.animalAPI.dto.AnimalInfoRequest;
+import com.example.animalAPI.dto.AnimalInfoResponse;
+import com.example.animalAPI.exception.AnimalApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

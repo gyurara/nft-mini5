@@ -1,4 +1,4 @@
-package com.example.pawchain.animalAPI.controller;
+package com.example.animalAPI.controller;
 
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -6,9 +6,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.pawchain.animalAPI.dto.AnimalInfoRequest;
-import com.example.pawchain.animalAPI.dto.AnimalInfoResponse;
-import com.example.pawchain.animalAPI.service.AnimalInfoService;
+import com.example.animalAPI.dto.AnimalInfoRequest;
+import com.example.animalAPI.dto.AnimalInfoResponse;
+import com.example.animalAPI.service.AnimalInfoService;
 
 @RestController
 @RequestMapping("/api/animal")

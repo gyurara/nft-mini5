@@ -1,4 +1,4 @@
-package com.example.pawchain.animalAPI.dto;
+package com.example.animalAPI.dto;
 
 public record ErrorResponse(
     int status,

@@ -1,4 +1,4 @@
-package com.example.pawchain.animalAPI.config;
+package com.example.animalAPI.config;
 
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
