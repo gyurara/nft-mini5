@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { UNLOCK_TIERS, DISCOUNT_PER_COUPON, createRealGateways } from './services.js';
 
 const EMOJI = { '강아지': '🐶', '고양이': '🐱', '토끼': '🐰', '햄스터': '🐹' };
@@ -73,55 +73,91 @@ function MedicalCalendar({ records, selectedDate, onSelectDate }) {
 function MedicalSection({ isHospital, showToast, calendarOpen, setCalendarOpen, grantOpen, setGrantOpen, medicalSbtId, medicalPassport, addNftCoupon, petId }) {
   const [records, setRecords] = useState([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
+  const updatesChannelRef = useRef(null);
+
+  
+  const fetchRecords = useCallback(async () => {
+    if (!medicalSbtId || !medicalPassport) return;
+    setLoadingRecords(true);
+    try {
+      const count = await medicalPassport.getRecordCount(medicalSbtId);
+      const fetched = [];
+      for (let i = 0; i < Number(count); i++) {
+        const r = await medicalPassport.getRecord(medicalSbtId, i);
+        // recordURI?? ????? ?? ??
+        let diagnosis = '', treatment = '', hospital = r.hospital, memo = '';
+        try {
+         const meta = JSON.parse(decodeURIComponent(escape(atob(r.recordURI.split(',')[1]))));
+          diagnosis = meta.diagnosis || meta.name || '';
+          treatment = meta.treatment || '';
+          hospital = meta.hospital || r.hospital;
+          memo = meta.memo || '';
+        } catch(_) {
+          diagnosis = r.recordURI;
+        }
+        fetched.push({
+          visitDate: Number(r.visitDate),
+          diagnosis,
+          treatment,
+          hospital,
+          memo,
+        });
+      }
+      const sorted = fetched.sort((a,b) => b.visitDate - a.visitDate);
+      const today = new Date().toISOString().split('T')[0];
+      const hasNewToday = sorted.some(r => {
+        const d = new Date(r.visitDate * 1000).toISOString().split('T')[0];
+        return d === today;
+      });
+      if (hasNewToday && addNftCoupon && petId) {
+        addNftCoupon(petId);
+      }
+      setRecords(sorted);
+    } catch(e) {
+      console.error('?? ?? ???? ??:', e);
+    } finally {
+      setLoadingRecords(false);
+    }
+  }, [medicalSbtId, medicalPassport, addNftCoupon, petId]);
 
   useEffect(() => {
-    if (!medicalSbtId || !medicalPassport) return;
-    const fetchRecords = async () => {
-      setLoadingRecords(true);
-      try {
-        const count = await medicalPassport.getRecordCount(medicalSbtId);
-        const fetched = [];
-        for (let i = 0; i < Number(count); i++) {
-          const r = await medicalPassport.getRecord(medicalSbtId, i);
-          // recordURI에서 메타데이터 파싱 시도
-          let diagnosis = '', treatment = '', hospital = r.hospital, memo = '';
-          try {
-           const meta = JSON.parse(decodeURIComponent(escape(atob(r.recordURI.split(',')[1]))));
-            diagnosis = meta.diagnosis || meta.name || '';
-            treatment = meta.treatment || '';
-            hospital = meta.hospital || r.hospital;
-            memo = meta.memo || '';
-          } catch(_) {
-            diagnosis = r.recordURI;
-          }
-          fetched.push({
-            visitDate: Number(r.visitDate),
-            diagnosis,
-            treatment,
-            hospital,
-            memo,
-          });
-        }
-        const sorted = fetched.sort((a,b) => b.visitDate - a.visitDate);
-        // 새 기록이 오늘 날짜면 NFT 교환권 지급 시도
-        const today = new Date().toISOString().split('T')[0];
-        const hasNewToday = sorted.some(r => {
-          const d = new Date(r.visitDate * 1000).toISOString().split('T')[0];
-          return d === today;
-        });
-        if (hasNewToday && addNftCoupon && petId) {
-          addNftCoupon(petId);
-        }
-        setRecords(sorted);
-      } catch(e) {
-        console.error('진료 기록 불러오기 실패:', e);
-      } finally {
-        setLoadingRecords(false);
+    fetchRecords();
+  }, [fetchRecords]);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel !== 'undefined' && !updatesChannelRef.current) {
+      updatesChannelRef.current = new BroadcastChannel('medical-updates');
+    }
+    const channel = updatesChannelRef.current;
+    const handleMessage = (event) => {
+      const data = event && event.data;
+      if (data && data.type === 'record-added' && data.medicalSbtId === medicalSbtId) {
+        fetchRecords();
       }
     };
-    fetchRecords();
-  }, [medicalSbtId, medicalPassport]);
-  const [selectedDate, setSelectedDate] = useState(null);
+    channel?.addEventListener?.('message', handleMessage);
+
+    const handleStorage = (e) => {
+      if (e?.key === 'medical-record-updated') {
+        try {
+          const data = JSON.parse(e.newValue || '{}');
+          if (data.medicalSbtId === medicalSbtId) {
+            fetchRecords();
+          }
+        } catch (_) { /* ignore */ }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      channel?.removeEventListener?.('message', handleMessage);
+      channel?.close?.();
+      updatesChannelRef.current = null;
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [fetchRecords, medicalSbtId]);
+
+const [selectedDate, setSelectedDate] = useState(null);
   const [expandedIdx, setExpandedIdx] = useState(null);
   const [addModal, setAddModal] = useState(false);
   const [addForm, setAddForm] = useState({ diagnosis:"", treatment:"", hospital:"", memo:"", visitDate: new Date().toISOString().split("T")[0] });
@@ -359,7 +395,7 @@ export function HomePage({ setPage, state }) {
 
       <div className="section" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
         <div className="section-tag">Benefits</div>
-        <h2 className="section-h2">왜 PetChain인가요?</h2>
+        <h2 className="section-h2">왜 AniCode인가요?</h2>
         <p className="section-sub">단순한 NFT를 넘어, 반려동물과의 진짜 유대를 기록합니다.</p>
         <div className="bm-grid">
           {[

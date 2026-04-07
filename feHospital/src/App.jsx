@@ -38,7 +38,7 @@ function Nav({ theme, toggleTheme, account, onConnect, onDisconnect }) {
   const short = account ? account.slice(0, 6) + '...' + account.slice(-4) : '';
   return (
     <nav>
-      <div className="logo">PET<span>CHAIN</span> <span style={{ fontSize:14, letterSpacing:2, color:"var(--accent2)", marginLeft:8 }}>🏥 HOSPITAL</span></div>
+      <div className="logo">Ani<span>Code</span> <span style={{ fontSize:14, letterSpacing:2, color:"var(--accent2)", marginLeft:8 }}>🏥 HOSPITAL</span></div>
       <div className="nav-right">
         <div className="theme-wrap">
           <span className="theme-lbl">{theme === 'dark' ? 'DARK' : 'LIGHT'}</span>
@@ -55,13 +55,14 @@ function Nav({ theme, toggleTheme, account, onConnect, onDisconnect }) {
 
 /* ───────────── App ───────────── */
 export default function App() {
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('hospital:theme') || 'dark');
   const [account, setAccount] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const toastTimer = useRef(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('hospital:theme', theme);
   }, [theme]);
 
   useEffect(() => {

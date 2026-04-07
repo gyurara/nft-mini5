@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { ethers } from 'ethers';
 
 /* ───────────── 에러 ───────────── */
@@ -422,6 +422,7 @@ export const DISCOUNT_PER_COUPON = 1000;
 
 /* ───────────── 커스텀 훅 ───────────── */
 export function usePetServiceApp() {
+  const APP_PERSIST_KEY = 'petchain:state';
   const [account, setAccount] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const [activePetId, setActivePetId] = useState(null);
@@ -444,6 +445,56 @@ export function usePetServiceApp() {
   const activePetIdResolved = activePetId || activeProfile?.pet?.id;
   const nftCoupons = nftCouponsMap[activePetIdResolved] || 0;
   const goodsCoupons = goodsCouponsMap[activePetIdResolved] || 0;
+
+  // --- 상태 복원 ---
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(APP_PERSIST_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved?.account) return;
+      setAccount(saved.account);
+      setProfiles(saved.profiles || []);
+      setActivePetId(saved.activePetId || null);
+      setTokenStates(saved.tokenStates || {});
+      setNftCouponsMap(saved.nftCouponsMap || {});
+      setGoodsCouponsMap(saved.goodsCouponsMap || {});
+      setDiscountCoupons(saved.discountCoupons || 0);
+      setCouponHistory(saved.couponHistory || []);
+      setLastMedicalCouponDate(saved.lastMedicalCouponDate || {});
+
+      // 저장된 프로필을 메모리 저장소에 복원
+      repositoryRef.current = new InMemoryPetProfileRepository();
+      (saved.profiles || []).forEach(p => repositoryRef.current.savePetProfile(p));
+    } catch (e) {
+      console.warn('state restore failed', e);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // --- 상태 저장 ---
+  useEffect(() => {
+    if (!account) {
+      localStorage.removeItem(APP_PERSIST_KEY);
+      return;
+    }
+    try {
+      const snapshot = {
+        account,
+        profiles,
+        activePetId,
+        tokenStates,
+        nftCouponsMap,
+        goodsCouponsMap,
+        discountCoupons,
+        couponHistory,
+        lastMedicalCouponDate,
+      };
+      localStorage.setItem(APP_PERSIST_KEY, JSON.stringify(snapshot));
+    } catch (e) {
+      console.warn('state persist failed', e);
+    }
+  }, [account, profiles, activePetId, tokenStates, nftCouponsMap, goodsCouponsMap, discountCoupons, couponHistory, lastMedicalCouponDate]);
 
   const getApp = useCallback(async () => {
     if (!appRef.current) {
@@ -488,6 +539,7 @@ export function usePetServiceApp() {
     setNftCouponsMap({}); setGoodsCouponsMap({}); setDiscountCoupons(0); setCouponHistory([]); setLastMedicalCouponDate({});
     repositoryRef.current = new InMemoryPetProfileRepository();
     appRef.current = null;
+    localStorage.removeItem(APP_PERSIST_KEY);
   }, []);
 
   const registerPet = useCallback(async (input) => {
