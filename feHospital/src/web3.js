@@ -12,8 +12,8 @@ const CHAIN_CONFIG = {
   },
 };
 
-const PET_SBT_ADDRESS = import.meta.env.VITE_PET_SBT_ADDRESS || '';
-const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '';
+const PET_SBT_ADDRESS = import.meta.env.VITE_PET_SBT_ADDRESS || '0x149c3A733A5344B3F39361930A90B7E384F9D8E8';
+const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0x3885d03aFccCE567BddD6415CCafe4483f4646c6';
 
 const PET_SBT_ABI = [
   'function getPetTokenIds(address owner) view returns (uint256[])',

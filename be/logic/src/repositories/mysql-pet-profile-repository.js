@@ -1,5 +1,12 @@
 const mysql = require('mysql2/promise');
 
+// MySQL2가 JSON 컬럼을 자동으로 객체로 파싱하는 경우를 처리
+function parseJson(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'object') return value; // 이미 파싱됨
+  try { return JSON.parse(value); } catch (_) { return null; }
+}
+
 class MySqlPetProfileRepository {
   constructor(pool) {
     this.pool = pool;
@@ -25,9 +32,9 @@ class MySqlPetProfileRepository {
     const row = rows[0];
     return {
       account: row.account,
-      pet: JSON.parse(row.pet),
-      sbt: row.sbt ? JSON.parse(row.sbt) : null,
-      nfts: row.nfts ? JSON.parse(row.nfts) : [],
+      pet: parseJson(row.pet),
+      sbt: row.sbt ? parseJson(row.sbt) : null,
+      nfts: row.nfts ? (parseJson(row.nfts) || []) : [],
       nftCount: row.nft_count || 0,
     };
   }
@@ -206,6 +213,22 @@ async function createMySqlPool() {
       description TEXT NOT NULL,
       vet_address VARCHAR(42),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) CHARACTER SET utf8mb4
+  `);
+
+  // 병원-보호자 승인 내역 (Spring Boot와 동기화)
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS pet_vet_approvals (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      pet_sbt_id VARCHAR(100) NOT NULL,
+      owner_address VARCHAR(100) NOT NULL,
+      vet_address VARCHAR(100) NOT NULL,
+      owner_signature VARCHAR(255),
+      active TINYINT(1) DEFAULT 1,
+      tx_hash VARCHAR(255),
+      created_at DATETIME DEFAULT NOW(),
+      updated_at DATETIME DEFAULT NOW(),
+      UNIQUE KEY uq_pet_vet (pet_sbt_id, vet_address)
     ) CHARACTER SET utf8mb4
   `);
 

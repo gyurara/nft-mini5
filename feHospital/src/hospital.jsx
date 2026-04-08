@@ -39,6 +39,31 @@ export default function HospitalPage({ account, showToast }) {
     visitDate: new Date().toISOString().split('T')[0],
   });
 
+  // 보호자 권한 요청 관련 상태
+  const [reqForm, setReqForm] = useState({ petSbtId: '', ownerAddress: '', message: '' });
+  const [reqSent, setReqSent] = useState(false);
+  const [reqLoading, setReqLoading] = useState(false);
+  const [connectedStatus, setConnectedStatus] = useState(null);
+
+  const handleCheckAccess = async () => {
+    if (!reqForm.ownerAddress || !account) { showToast('보호자 주소를 입력해주세요.', 'error'); return; }
+    try {
+      const connected = await checkAccess(reqForm.ownerAddress, account);
+      setConnectedStatus(connected);
+    } catch (e) { showToast(e.message, 'error'); }
+  };
+
+  const handleSendRequest = async () => {
+    if (!reqForm.petSbtId || !reqForm.ownerAddress) { showToast('SBT ID와 보호자 주소를 입력해주세요.', 'error'); return; }
+    setReqLoading(true);
+    try {
+      await sendApprovalRequest({ petSbtId: reqForm.petSbtId, ownerAddress: reqForm.ownerAddress, message: reqForm.message });
+      setReqSent(true);
+      showToast('권한 요청이 전송되었습니다.');
+    } catch (e) { showToast(e.message, 'error'); }
+    finally { setReqLoading(false); }
+  };
+
 
   useEffect(() => {
     const saved = localStorage.getItem('hospital:lastPetSbtId');
@@ -128,6 +153,26 @@ export default function HospitalPage({ account, showToast }) {
       );
       await tx.wait();
       showToast('✅ 진료 기록이 블록체인에 추가되었습니다!');
+
+      // DB(Spring Boot)에도 저장
+      try {
+        const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+        await fetch(`${ANIMAL_API}/record/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            petSbtId: Number(petSbtId),
+            ownerAddress: reqForm.ownerAddress || null,
+            vetAddress: account,
+            recordType: '진료',
+            diagnosis: form.diagnosis,
+            treatment: form.treatment,
+            hospital: form.hospital,
+            memo: form.memo,
+            visitDate,
+          }),
+        });
+      } catch (_) {}
 
       setRecords(prev => [{ visitDate, diagnosis: form.diagnosis, treatment: form.treatment, hospital: form.hospital, memo: form.memo }, ...prev]);
       setForm({ diagnosis: '', treatment: '', hospital: '', memo: '', visitDate: new Date().toISOString().split('T')[0] });

@@ -79,44 +79,57 @@ function MedicalSection({ isHospital, showToast, calendarOpen, setCalendarOpen, 
 
   
   const fetchRecords = useCallback(async () => {
-    if (!medicalSbtId || !medicalPassport) return;
+    if (!medicalSbtId) return;
     setLoadingRecords(true);
     try {
-      const count = await medicalPassport.getRecordCount(medicalSbtId);
-      const fetched = [];
-      for (let i = 0; i < Number(count); i++) {
-        const r = await medicalPassport.getRecord(medicalSbtId, i);
-        // recordURI?? ????? ?? ??
-        let diagnosis = '', treatment = '', hospital = r.hospital, memo = '';
-        try {
-         const meta = JSON.parse(decodeURIComponent(escape(atob(r.recordURI.split(',')[1]))));
-          diagnosis = meta.diagnosis || meta.name || '';
-          treatment = meta.treatment || '';
-          hospital = meta.hospital || r.hospital;
-          memo = meta.memo || '';
-        } catch(_) {
-          diagnosis = r.recordURI;
+      // Spring Boot DB에서 먼저 조회
+      const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+      let dbRecords = [];
+      try {
+        const res = await fetch(`${ANIMAL_API}/record/${medicalSbtId}`);
+        const data = await res.json();
+        if (Array.isArray(data.records)) {
+          dbRecords = data.records.map(r => ({
+            visitDate: Number(r.visitDate),
+            diagnosis: r.diagnosis || '',
+            treatment: r.treatment || '',
+            hospital: r.hospital || '',
+            memo: r.memo || '',
+          }));
         }
-        fetched.push({
-          visitDate: Number(r.visitDate),
-          diagnosis,
-          treatment,
-          hospital,
-          memo,
-        });
+      } catch (_) {}
+
+      // 블록체인에서도 조회 (DB에 없는 기록 보완)
+      let chainRecords = [];
+      if (medicalPassport) {
+        try {
+          const count = await medicalPassport.getRecordCount(medicalSbtId);
+          for (let i = 0; i < Number(count); i++) {
+            const r = await medicalPassport.getRecord(medicalSbtId, i);
+            let diagnosis = '', treatment = '', hospital = r.hospital, memo = '';
+            try {
+              const meta = JSON.parse(decodeURIComponent(escape(atob(r.recordURI.split(',')[1]))));
+              diagnosis = meta.diagnosis || meta.name || '';
+              treatment = meta.treatment || '';
+              hospital = meta.hospital || r.hospital;
+              memo = meta.memo || '';
+            } catch (_) { diagnosis = r.recordURI; }
+            chainRecords.push({ visitDate: Number(r.visitDate), diagnosis, treatment, hospital, memo });
+          }
+        } catch (_) {}
       }
-      const sorted = fetched.sort((a,b) => b.visitDate - a.visitDate);
+
+      // DB 기록 우선, 없으면 블록체인 기록 사용
+      const merged = dbRecords.length > 0 ? dbRecords : chainRecords;
+      const sorted = merged.sort((a, b) => b.visitDate - a.visitDate);
+
       const today = new Date().toISOString().split('T')[0];
-      const hasNewToday = sorted.some(r => {
-        const d = new Date(r.visitDate * 1000).toISOString().split('T')[0];
-        return d === today;
-      });
-      if (hasNewToday && addNftCoupon && petId) {
-        addNftCoupon(petId);
-      }
+      const hasNewToday = sorted.some(r => new Date(r.visitDate * 1000).toISOString().split('T')[0] === today);
+      if (hasNewToday && addNftCoupon && petId) addNftCoupon(petId);
+
       setRecords(sorted);
-    } catch(e) {
-      console.error('?? ?? ???? ??:', e);
+    } catch (e) {
+      console.error('진료 기록 조회 실패:', e);
     } finally {
       setLoadingRecords(false);
     }
@@ -185,7 +198,29 @@ const [selectedDate, setSelectedDate] = useState(null);
     if (!addForm.diagnosis || !addForm.hospital) { showToast("진단명과 병원명은 필수입니다.","error"); return; }
     setAdding(true);
     try {
-      const newRecord = { visitDate:Math.floor(new Date(addForm.visitDate).getTime()/1000), diagnosis:addForm.diagnosis, treatment:addForm.treatment, hospital:addForm.hospital, memo:addForm.memo };
+      const visitDate = Math.floor(new Date(addForm.visitDate).getTime()/1000);
+      const newRecord = { visitDate, diagnosis:addForm.diagnosis, treatment:addForm.treatment, hospital:addForm.hospital, memo:addForm.memo };
+
+      // Spring Boot DB에 저장 (medicalSbtId가 있을 때)
+      if (medicalSbtId) {
+        try {
+          const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+          await fetch(`${ANIMAL_API}/record/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              petSbtId: Number(medicalSbtId),
+              recordType: '진료',
+              diagnosis: addForm.diagnosis,
+              treatment: addForm.treatment,
+              hospital: addForm.hospital,
+              memo: addForm.memo,
+              visitDate,
+            }),
+          });
+        } catch (_) {}
+      }
+
       setRecords(prev => [newRecord,...prev].sort((a,b)=>b.visitDate-a.visitDate));
       showToast("진료 기록이 추가되었습니다!");
       setAddModal(false);
@@ -216,6 +251,22 @@ const handleGrant = async () => {
       remainingWrites
     );
     await tx.wait();
+    // DB에도 병원 연결 기록
+    try {
+      const NODE_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+      await fetch(`${NODE_API}/vet/respond-approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          approvalId: `grant-${grantForm.hospital}-${Date.now()}`,
+          ownerAddress: medicalPassport?.runner?.address || '',
+          approved: true,
+          vetAddress: grantForm.hospital,
+          petSbtId: petId,
+        }),
+      });
+    } catch (_) {}
     showToast("병원 권한이 부여되었습니다!");
     setGrantModal(false);
     setGrantForm({ hospital:"", validUntil:"", remainingWrites:"10" });
@@ -743,7 +794,7 @@ export function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectW
     if (!profile?.sbt?.tokenId) return;
     const init = async () => {
       try {
-        const { medicalPassport, petSBT } = await createRealGateways();
+        const { medicalPassport } = await createRealGateways();
         setMedicalPassportContract(medicalPassport);
         const sbtId = await medicalPassport.medicalSbtByOwnerSbt(profile.sbt.tokenId);
         if (Number(sbtId) !== 0) setMedicalSbtId(Number(sbtId));

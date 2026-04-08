@@ -4,13 +4,14 @@ pragma solidity ^0.8.25;
 import {ERC721} from "@openzeppelin/contracts@5.6.1/token/ERC721/ERC721.sol";
 import {IERC721} from "@openzeppelin/contracts@5.6.1/token/ERC721/IERC721.sol";
 import {ERC721URIStorage} from "@openzeppelin/contracts@5.6.1/token/ERC721/extensions/ERC721URIStorage.sol";
+import {Ownable} from "@openzeppelin/contracts@5.6.1/access/Ownable.sol";
 
 import {IERC5192} from "./IERC5192.sol";
 
 /// @title MedicalPassportSBT
 /// @notice Soulbound ERC-721 that stores a pet's longitudinal medical passport.
 /// @dev One OwnerSBT -> one MedicalPassportSBT. Hospitals append records to the same passport.
-contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
+contract MedicalPassportSBT is ERC721URIStorage, Ownable, IERC5192 {
     struct PassportInfo {
         uint256 linkedOwnerSbtId;
         uint64 createdAt;
@@ -23,6 +24,14 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
         bool allowed;
         uint64 validUntil; // 0 means no expiry
         uint32 remainingWrites; // type(uint32).max can be treated as unlimited
+    }
+
+    struct PendingPermissionRequest {
+        bool exists;
+        uint64 validUntil; // 0 means no expiry
+        uint32 remainingWrites;
+        uint64 requestedAt;
+        uint256 paidAmount;
     }
 
     struct MedicalRecordEntry {
@@ -50,16 +59,25 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
     error InvalidRemainingWrites();
     error PermissionDenied();
     error RecordIndexOutOfBounds();
+    error PendingPermissionRequestExists();
+    error PendingPermissionRequestNotFound();
+    error PermissionAlreadyActive();
+    error IncorrectPermissionRequestFee(uint256 required, uint256 sent);
+    error RefundFailed();
+    error WithdrawalFailed();
 
     IERC721 public immutable ownerSBT;
 
     uint256 private _nextTokenId;
+    uint256 public permissionRequestFee;
+    uint256 public pendingPermissionEscrow;
 
     /// @notice ownerSbtId => medicalPassportSbtId
     mapping(uint256 => uint256) public medicalSbtByOwnerSbt;
 
     mapping(uint256 => PassportInfo) private _passportInfoByTokenId;
     mapping(uint256 => mapping(address => Permission)) private _permissions;
+    mapping(uint256 => mapping(address => PendingPermissionRequest)) private _pendingPermissionRequests;
     mapping(uint256 => mapping(uint256 => MedicalRecordEntry)) private _recordsByPassportAndIndex;
 
     event MedicalPassportMinted(
@@ -67,6 +85,27 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
         uint256 indexed ownerSbtId,
         uint256 indexed medicalSbtId,
         string initialSummaryURI
+    );
+
+    event HospitalPermissionRequested(
+        uint256 indexed medicalSbtId,
+        address indexed hospital,
+        uint64 validUntil,
+        uint32 remainingWrites,
+        uint256 paidAmount
+    );
+
+    event HospitalPermissionRequestCancelled(
+        uint256 indexed medicalSbtId,
+        address indexed hospital,
+        uint256 paidAmount
+    );
+
+    event HospitalPermissionRequestRejected(
+        uint256 indexed medicalSbtId,
+        address indexed grantor,
+        address indexed hospital,
+        uint256 paidAmount
     );
 
     event HospitalPermissionGranted(
@@ -94,7 +133,10 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
         string updatedSummaryURI
     );
 
-    constructor(address ownerSbtAddress) ERC721("Pet Medical Passport SBT", "PMPS") {
+    event PermissionRequestFeeUpdated(uint256 newPermissionRequestFee);
+    event Withdrawal(address indexed to, uint256 amount);
+
+    constructor(address ownerSbtAddress) ERC721("Pet Medical Passport SBT", "PMPS") Ownable(msg.sender) {
         if (ownerSbtAddress == address(0)) revert ZeroAddress();
         ownerSBT = IERC721(ownerSbtAddress);
     }
@@ -128,33 +170,104 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
         emit Locked(medicalSbtId);
     }
 
-    /// @notice Owner grants a hospital wallet permission to append records.
+    /// @notice Hospital requests permission and escrows the exact fee in the contract.
+    /// @dev The paid ETH becomes protocol revenue only if the passport owner approves.
+    ///      If the request is rejected or cancelled, the full paid amount is refunded to the hospital.
     /// @param validUntil 0 = no expiry, otherwise unix timestamp cutoff.
     /// @param remainingWrites Number of records the hospital may append. Use type(uint32).max for unlimited.
-    function grantHospitalPermission(
-        uint256 medicalSbtId,
-        address hospital,
-        uint64 validUntil,
-        uint32 remainingWrites
-    ) external {
-        if (hospital == address(0)) revert ZeroAddress();
+    function requestPermission(uint256 medicalSbtId, uint64 validUntil, uint32 remainingWrites) external payable {
+        ownerOf(medicalSbtId); // revert if passport doesn't exist
         if (validUntil != 0 && validUntil < block.timestamp) revert InvalidPermissionWindow();
         if (remainingWrites == 0) revert InvalidRemainingWrites();
+        if (_canAppendRecord(medicalSbtId, msg.sender)) revert PermissionAlreadyActive();
+        if (_pendingPermissionRequests[medicalSbtId][msg.sender].exists) revert PendingPermissionRequestExists();
+        if (msg.value != permissionRequestFee) {
+            revert IncorrectPermissionRequestFee(permissionRequestFee, msg.value);
+        }
 
-        _requirePassportOwner(medicalSbtId);
-
-        _permissions[medicalSbtId][hospital] = Permission({
-            allowed: true,
+        _pendingPermissionRequests[medicalSbtId][msg.sender] = PendingPermissionRequest({
+            exists: true,
             validUntil: validUntil,
-            remainingWrites: remainingWrites
+            remainingWrites: remainingWrites,
+            requestedAt: uint64(block.timestamp),
+            paidAmount: msg.value
         });
+        pendingPermissionEscrow += msg.value;
 
-        emit HospitalPermissionGranted(medicalSbtId, msg.sender, hospital, validUntil, remainingWrites);
+        emit HospitalPermissionRequested(medicalSbtId, msg.sender, validUntil, remainingWrites, msg.value);
     }
 
-    function revokeHospitalPermission(uint256 medicalSbtId, address hospital) external {
+    /// @notice Passport owner approves a previously paid hospital request.
+    /// @dev Approval itself has no additional protocol fee. The escrowed ETH becomes withdrawable protocol revenue.
+    function approvePermission(uint256 medicalSbtId, address hospital) external {
+        if (hospital == address(0)) revert ZeroAddress();
         _requirePassportOwner(medicalSbtId);
+
+        PendingPermissionRequest memory pendingRequest = _pendingPermissionRequests[medicalSbtId][hospital];
+        if (!pendingRequest.exists) revert PendingPermissionRequestNotFound();
+        if (pendingRequest.validUntil != 0 && pendingRequest.validUntil < block.timestamp) {
+            revert InvalidPermissionWindow();
+        }
+
+        _grantHospitalPermission(medicalSbtId, hospital, pendingRequest.validUntil, pendingRequest.remainingWrites);
+        delete _pendingPermissionRequests[medicalSbtId][hospital];
+        pendingPermissionEscrow -= pendingRequest.paidAmount;
+
+        emit HospitalPermissionGranted(
+            medicalSbtId,
+            msg.sender,
+            hospital,
+            pendingRequest.validUntil,
+            pendingRequest.remainingWrites
+        );
+    }
+
+    /// @notice Passport owner rejects a pending hospital request.
+    /// @dev The full request payment is refunded to the hospital.
+    function rejectPermission(uint256 medicalSbtId, address hospital) external {
+        if (hospital == address(0)) revert ZeroAddress();
+        _requirePassportOwner(medicalSbtId);
+
+        PendingPermissionRequest memory pendingRequest = _pendingPermissionRequests[medicalSbtId][hospital];
+        if (!pendingRequest.exists) revert PendingPermissionRequestNotFound();
+
+        delete _pendingPermissionRequests[medicalSbtId][hospital];
+        pendingPermissionEscrow -= pendingRequest.paidAmount;
+        _refundETH(hospital, pendingRequest.paidAmount);
+
+        emit HospitalPermissionRequestRejected(medicalSbtId, msg.sender, hospital, pendingRequest.paidAmount);
+    }
+
+    /// @notice Hospital clears its own pending request.
+    /// @dev The full request payment is refunded to the hospital.
+    function cancelPermissionRequest(uint256 medicalSbtId) external {
+        ownerOf(medicalSbtId); // revert if passport doesn't exist
+
+        PendingPermissionRequest memory pendingRequest = _pendingPermissionRequests[medicalSbtId][msg.sender];
+        if (!pendingRequest.exists) revert PendingPermissionRequestNotFound();
+
+        delete _pendingPermissionRequests[medicalSbtId][msg.sender];
+        pendingPermissionEscrow -= pendingRequest.paidAmount;
+        _refundETH(msg.sender, pendingRequest.paidAmount);
+
+        emit HospitalPermissionRequestCancelled(medicalSbtId, msg.sender, pendingRequest.paidAmount);
+    }
+
+    /// @notice Passport owner revokes an active hospital permission.
+    /// @dev If the hospital also has a pending request, that pending request is removed and fully refunded.
+    function revokeHospitalPermission(uint256 medicalSbtId, address hospital) external {
+        if (hospital == address(0)) revert ZeroAddress();
+        _requirePassportOwner(medicalSbtId);
+
+        PendingPermissionRequest memory pendingRequest = _pendingPermissionRequests[medicalSbtId][hospital];
+
         delete _permissions[medicalSbtId][hospital];
+        delete _pendingPermissionRequests[medicalSbtId][hospital];
+
+        if (pendingRequest.exists) {
+            pendingPermissionEscrow -= pendingRequest.paidAmount;
+            _refundETH(hospital, pendingRequest.paidAmount);
+        }
 
         emit HospitalPermissionRevoked(medicalSbtId, msg.sender, hospital);
     }
@@ -241,6 +354,15 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
         return _permissions[medicalSbtId][hospital];
     }
 
+    function getPendingPermissionRequest(uint256 medicalSbtId, address hospital)
+        external
+        view
+        returns (PendingPermissionRequest memory)
+    {
+        ownerOf(medicalSbtId);
+        return _pendingPermissionRequests[medicalSbtId][hospital];
+    }
+
     function canAppendRecord(uint256 medicalSbtId, address hospital) external view returns (bool) {
         ownerOf(medicalSbtId);
         return _canAppendRecord(medicalSbtId, hospital);
@@ -250,17 +372,33 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
         return _nextTokenId;
     }
 
+    function getWithdrawableBalance() external view returns (uint256) {
+        return address(this).balance - pendingPermissionEscrow;
+    }
+
+    function setPermissionRequestFee(uint256 newPermissionRequestFee) external onlyOwner {
+        permissionRequestFee = newPermissionRequestFee;
+        emit PermissionRequestFeeUpdated(newPermissionRequestFee);
+    }
+
+    function withdraw() external onlyOwner {
+        uint256 amount = address(this).balance - pendingPermissionEscrow;
+        (bool success,) = payable(owner()).call{value: amount}("");
+        if (!success) revert WithdrawalFailed();
+        emit Withdrawal(owner(), amount);
+    }
+
     function locked(uint256 tokenId) external view override returns (bool) {
         ownerOf(tokenId);
         return true;
     }
 
-    function approve(address, uint256) public pure override(ERC721, IERC721) {
-        revert ApprovalDisabled();
+   function approve(address, uint256) public pure override(ERC721, IERC721) {
+    revert ApprovalDisabled();
     }
 
     function setApprovalForAll(address, bool) public pure override(ERC721, IERC721) {
-        revert ApprovalDisabled();
+    revert ApprovalDisabled();
     }
 
     function _update(address to, uint256 tokenId, address auth) internal override returns (address from) {
@@ -269,8 +407,27 @@ contract MedicalPassportSBT is ERC721URIStorage, IERC5192 {
         return super._update(to, tokenId, auth);
     }
 
+    function _refundETH(address to, uint256 amount) internal {
+        if (amount == 0) return;
+        (bool success,) = payable(to).call{value: amount}("");
+        if (!success) revert RefundFailed();
+    }
+
     function _requirePassportOwner(uint256 medicalSbtId) internal view {
         if (ownerOf(medicalSbtId) != msg.sender) revert NotPassportOwner();
+    }
+
+    function _grantHospitalPermission(
+        uint256 medicalSbtId,
+        address hospital,
+        uint64 validUntil,
+        uint32 remainingWrites
+    ) internal {
+        _permissions[medicalSbtId][hospital] = Permission({
+            allowed: true,
+            validUntil: validUntil,
+            remainingWrites: remainingWrites
+        });
     }
 
     function _canAppendRecord(uint256 medicalSbtId, address hospital) internal view returns (bool) {

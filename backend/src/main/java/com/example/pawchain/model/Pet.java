@@ -43,7 +43,7 @@ public class Pet {
     @Column(length = 15)
     private String registrationNo;
 
-    @Column(length = 100000)
+    @Column(columnDefinition = "MEDIUMTEXT")
     private String image;
 
     @Column(length = 64)

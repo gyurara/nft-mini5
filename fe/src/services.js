@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { ethers } from 'ethers';
+import { api } from './api.js';
 
 /* ───────────── 에러 ───────────── */
 export class AppError extends Error {
@@ -356,8 +357,9 @@ export async function createRealGateways() {
   'function getRecordCount(uint256 medicalSbtId) view returns (uint256)',
   'function canAppendRecord(uint256 medicalSbtId, address hospital) view returns (bool)',
   'function medicalSbtByOwnerSbt(uint256 ownerSbtId) view returns (uint256)',
-  // ↓ 이 줄 추가
   'function getPermission(uint256 medicalSbtId, address hospital) view returns (tuple(bool allowed, uint64 validUntil, uint32 remainingWrites))',
+  'function approvePermission(uint256 medicalSbtId, address hospital)',
+  'function rejectPermission(uint256 medicalSbtId, address hospital)',
 ], signer);
 
   const memoryNFT = new ethers.Contract(MEMORY_NFT_ADDRESS, [
@@ -531,10 +533,23 @@ export function usePetServiceApp() {
     setAccount(acc);
     setTokenStates({});
     refreshProfiles(acc);
+    try { await api.walletLogin(acc); } catch (_) {}
+    // DB에서 nft_count 동기화
+    try {
+      const tokenState = await api.getTokenState(acc);
+      if (tokenState?.nftBalance != null) {
+        setNftCouponsMap(prev => {
+          const key = Object.keys(prev)[0];
+          if (!key) return prev;
+          return { ...prev, [key]: tokenState.nftBalance };
+        });
+      }
+    } catch (_) {}
     return acc;
   }, [refreshProfiles]);
 
-  const disconnectWallet = useCallback(() => {
+  const disconnectWallet = useCallback(async () => {
+    try { await api.walletLogout(); } catch (_) {}
     setAccount(null); setProfiles([]); setActivePetId(null); setTokenStates({});
     setNftCouponsMap({}); setGoodsCouponsMap({}); setDiscountCoupons(0); setCouponHistory([]); setLastMedicalCouponDate({});
     repositoryRef.current = new InMemoryPetProfileRepository();
@@ -545,6 +560,24 @@ export function usePetServiceApp() {
   const registerPet = useCallback(async (input) => {
     const app = await getApp();
     const result = await app.registerPetService.execute({ ...input, account });
+    // be 서버 (pet_profiles 테이블)
+    try { await api.registerPet({ ...input, account }); } catch (_) {}
+    // Spring Boot (pets 테이블)
+    try {
+      const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+      await fetch(`${ANIMAL_API}/pets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerAddress: account,
+          name: input.name,
+          species: input.species,
+          type: input.gender || null,
+          birthDate: input.birthDate || null,
+          image: input.imageUrl || null,
+        }),
+      });
+    } catch (_) {}
     refreshProfiles(account);
     setActivePetId(result.pet.id);
     return result;
@@ -558,6 +591,12 @@ export function usePetServiceApp() {
     const newTs = await sessionGateway.getTokenState(account);
     setTokenStates(prev => ({ ...prev, [targetId]: newTs }));
     refreshProfiles(account);
+
+    // DB 동기화
+    try {
+      const issuance = result.issuance?.sbt;
+      if (issuance) await api.syncSbt({ account, ...issuance });
+    } catch (_) {}
 
     if (result.nftCouponsGranted) {
       setNftCouponsMap(prev => ({ ...prev, [targetId]: (prev[targetId] || 0) + result.nftCouponsGranted }));
@@ -576,6 +615,12 @@ export function usePetServiceApp() {
     const newTs = await sessionGateway.getTokenState(account);
     setTokenStates(prev => ({ ...prev, [targetId]: newTs }));
     refreshProfiles(account);
+
+    // DB 동기화
+    try {
+      const issuance = result.issuance?.nfts?.slice(-1)[0];
+      if (issuance) await api.syncNft({ account, ...issuance });
+    } catch (_) {}
 
     setNftCouponsMap(prev => ({ ...prev, [targetId]: Math.max(0, (prev[targetId] || 0) - 1) }));
     if (result.goodsCouponGranted) {
@@ -628,6 +673,18 @@ export function usePetServiceApp() {
     return { success: true, message: `${tier.name} 교환 및 해금 완료!` };
   }, [goodsCouponsMap, activePetIdResolved]);
 
+  const useDiscountCoupons = useCallback((count) => {
+    const toUse = Math.min(count || 0, discountCoupons || 0);
+    if (toUse <= 0) return { discounted: 0, used: 0 };
+    const discounted = toUse * DISCOUNT_PER_COUPON;
+    setDiscountCoupons(prev => Math.max(0, prev - toUse));
+    setCouponHistory(prev => [
+      { id: Date.now(), type: 'discount', action: 'use', amount: -toUse, desc: `할인권 ${toUse}개 사용 (-${discounted.toLocaleString()}원)`, date: new Date().toLocaleString() },
+      ...prev,
+    ]);
+    return { discounted, used: toUse };
+  }, [discountCoupons]);
+
   return {
     state: {
       account, connected: !!account, profiles, profile: activeProfile, activePetId,
@@ -637,7 +694,7 @@ export function usePetServiceApp() {
       discountCoupons: discountCoupons || 0, couponHistory,
       unlockedGoods: UNLOCK_TIERS.map(tier => ({ ...tier, isAvailable: (goodsCoupons || 0) >= tier.cost }))
     },
-    connectWallet, disconnectWallet, registerPet, issueSbt, issueNft, redeemGoodsCoupon, addNftCouponFromMedical, mintMedicalPassport, setActivePetId,
+    connectWallet, disconnectWallet, registerPet, issueSbt, issueNft, redeemGoodsCoupon, addNftCouponFromMedical, mintMedicalPassport, setActivePetId, useDiscountCoupons,
     getGoodsPreview: useCallback(async () => { const app = await getApp(); return app.getGoodsPreviewService.execute(account); }, [account, getApp])
   };
 }

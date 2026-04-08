@@ -36,14 +36,16 @@ function validatePetInput(input) {
     throw new AppError('INVALID_PET_INPUT', '반려동물 등록 정보가 필요합니다.');
   }
 
-  const image = typeof input.image === 'string' && input.image.trim() ? input.image.trim() : null;
+  const imageUrl = typeof input.imageUrl === 'string' && input.imageUrl.trim() ? input.imageUrl.trim() : null;
 
   return {
     account: requireNonEmptyString(input.account, 'account'),
     name: requireNonEmptyString(input.name, 'name'),
     species: requireNonEmptyString(input.species, 'species'),
-    birthDate: validateBirthDate(input.birthDate),
-    image,
+    gender: input.gender || null,
+    birthDate: input.birthDate ? validateBirthDate(input.birthDate) : null,
+    adoptDate: input.adoptDate || null,
+    imageUrl,
   };
 }
 
