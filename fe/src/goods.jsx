@@ -162,6 +162,29 @@ export function GoodsPage({ state, getGoodsPreview, showToast, setPage, useDisco
     if (state.connected) getGoodsPreview().then(setPreview).catch(() => {});
   }, [state.connected, state.tokenState?.hasNft]);
 
+  // Spring Boot에서 주문 내역 불러오기
+  useEffect(() => {
+    if (!state.account) return;
+    const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+    fetch(`${ANIMAL_API}/orders/owner/${state.account}`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setOrders(data.map(o => ({
+            id: o.id,
+            goods: o.goodsType,
+            design: o.imageLabel,
+            qty: o.quantity,
+            total: 0,
+            address: { name: o.recipientName, addr1: o.address },
+            status: o.status,
+            orderedAt: o.createdAt,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, [state.account]);
+
   useEffect(() => {
     setUseCoupons(prev => Math.min(prev, state.discountCoupons));
   }, [state.discountCoupons]);
@@ -170,12 +193,11 @@ export function GoodsPage({ state, getGoodsPreview, showToast, setPage, useDisco
     setAddress(prev => ({ ...prev, [key]: value }));
   };
 
-  const submitOrder = () => {
+  const submitOrder = async () => {
     if (!address.name || !address.phone || !address.addr1) {
       showToast('모든 배송 정보를 입력해주세요.', 'error');
       return;
     }
-    // services.js에서 주입된 useDiscountCoupons가 존재하는지 안전하게 체크
     const { discounted = 0 } = (typeof useDiscountCoupons === 'function' ? useDiscountCoupons(useCoupons) : { discounted: 0 }) || {};
     const newOrder = {
       id: Date.now(),
@@ -190,13 +212,30 @@ export function GoodsPage({ state, getGoodsPreview, showToast, setPage, useDisco
       status: '결제완료',
       orderedAt: new Date().toLocaleString('ko-KR'),
     };
+    // DB 저장 (Spring Boot)
+    try {
+      const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+      await fetch(`${ANIMAL_API}/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerAddress: state.account,
+          goodsType: g.id,
+          imageLabel: design.name,
+          quantity: qty,
+          recipientName: address.name,
+          address: `${address.addr1}`,
+          memo: `${g.name} / ${design.name}`,
+        }),
+      });
+    } catch (_) {}
     setOrders(prev => [newOrder, ...prev]);
     setOrderModal(false);
     setAddress({ name:'', phone:'', addr1:'' });
     showToast(`${g.name} 주문 완료! 🎉`);
   };
 
-  const submitUnlockOrder = (tier) => {
+  const submitUnlockOrder = async (tier) => {
     if (!address.name || !address.phone || !address.addr1) {
       showToast('모든 배송 정보를 입력해주세요.', 'error');
       return;
@@ -215,6 +254,23 @@ export function GoodsPage({ state, getGoodsPreview, showToast, setPage, useDisco
         status: '교환완료',
         orderedAt: new Date().toLocaleString('ko-KR'),
       };
+      // DB 저장 (Spring Boot)
+      try {
+        const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+        await fetch(`${ANIMAL_API}/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ownerAddress: state.account,
+            goodsType: tier.id,
+            imageLabel: '해금 보상',
+            quantity: 1,
+            recipientName: address.name,
+            address: `${address.addr1}`,
+            memo: `${tier.name} 교환권 교환`,
+          }),
+        });
+      } catch (_) {}
       setOrders(prev => [newOrder, ...prev]);
       setUnlockOrderModal(null);
       setAddress({ name:'', phone:'', addr1:'' });

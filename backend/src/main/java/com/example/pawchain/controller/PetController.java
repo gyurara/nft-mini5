@@ -67,7 +67,7 @@ public class PetController {
     // ✅ ID로 단건 조회 (추가)
     @GetMapping("/id/{id}")
     public ResponseEntity<?> getPetById(@PathVariable Long id) {
-        return petRepository.findById(id)
+        return petRepository.findByIdQuery(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -75,7 +75,7 @@ public class PetController {
     // ✅ NFT 가치 조회
     @GetMapping("/id/{id}/value")
     public ResponseEntity<?> getNftValue(@PathVariable Long id) {
-        return petRepository.findById(id)
+        return petRepository.findByIdQuery(id)
                 .map(p -> ResponseEntity.ok(Map.of(
                         "id", p.getId(),
                         "name", p.getName(),

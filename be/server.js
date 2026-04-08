@@ -103,7 +103,8 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 세션 설정
 app.use(session({
@@ -629,7 +630,7 @@ app.post('/api/vet/request-approval', requireOrg, async (req, res) => {
 // Body: { approvalId, ownerAddress, approved }
 app.post('/api/vet/respond-approval', requireLogin, async (req, res) => {
   try {
-    const { approvalId, ownerAddress, approved } = req.body || {};
+    const { approvalId, ownerAddress, approved, txHash } = req.body || {};
 
     if (!approvalId || !ownerAddress || approved === undefined) {
       return res.status(400).json({ code: 'INVALID_PARAMS', message: 'approvalId, ownerAddress, approved는 필수입니다.' });
@@ -664,13 +665,13 @@ app.post('/api/vet/respond-approval', requireLogin, async (req, res) => {
         );
 
         // Spring Boot pet_vet_approvals 동기화
-        const txHash = '0x' + require('crypto').randomBytes(32).toString('hex').substring(0, 64) + '00';
+        const realTxHash = txHash || ('0x' + require('crypto').randomBytes(32).toString('hex').substring(0, 64) + '00');
         try {
           await conn.execute(
             `INSERT INTO pet_vet_approvals (pet_sbt_id, owner_address, vet_address, owner_signature, active, tx_hash, created_at, updated_at)
              VALUES (?, ?, ?, 'sse-approved', 1, ?, NOW(), NOW())
-             ON DUPLICATE KEY UPDATE active = 1, updated_at = NOW()`,
-            [approval.pet_sbt_id, normalizedOwner, approval.vet_address, txHash]
+             ON DUPLICATE KEY UPDATE active = 1, tx_hash = VALUES(tx_hash), updated_at = NOW()`,
+            [approval.pet_sbt_id, normalizedOwner, approval.vet_address, realTxHash]
           );
         } catch (syncErr) {
           console.warn('pet_vet_approvals 동기화 실패 (무시):', syncErr.message);

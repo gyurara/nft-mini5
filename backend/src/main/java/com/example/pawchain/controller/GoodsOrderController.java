@@ -81,13 +81,13 @@ public class GoodsOrderController {
     @GetMapping("/owner/{address}")
     public List<GoodsOrder> getMyOrders(@PathVariable String address) {
         return goodsOrderRepository
-                .findByOwnerAddressIgnoreCaseOrderByCreatedAtDesc(address);
+                .findByOwnerAddressIgnoreCaseOrderByCreatedAtDesc(address.toLowerCase());
     }
 
     // ✅ ID 단건 조회 (추가)
     @GetMapping("/id/{id}")
     public ResponseEntity<?> getOrderById(@PathVariable Long id) {
-        return goodsOrderRepository.findById(id)
+        return goodsOrderRepository.findByIdQuery(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -113,7 +113,7 @@ public class GoodsOrderController {
                     .body(Map.of("error", "유효하지 않은 status 값입니다."));
         }
 
-        return goodsOrderRepository.findById(id)
+        return goodsOrderRepository.findByIdQuery(id)
                 .map(order -> {
                     order.setStatus(status);
                     return ResponseEntity.ok(goodsOrderRepository.save(order));
