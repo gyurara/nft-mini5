@@ -229,7 +229,7 @@ const [selectedDate, setSelectedDate] = useState(null);
 
   const calendarModal = calendarOpen; const setCalendarModal = setCalendarOpen;
   const grantModal = grantOpen; const setGrantModal = setGrantOpen;
-  const [grantForm, setGrantForm] = useState({ hospital:"", validUntil:"", remainingWrites:"10" });
+  const [grantForm, setGrantForm] = useState({ hospital:"" });
   const [granting, setGranting] = useState(false);
 
 const handleGrant = async () => {
@@ -238,16 +238,8 @@ const handleGrant = async () => {
   if (!medicalPassport) { showToast("컨트랙트 연결 실패", "error"); return; }
   setGranting(true);
   try {
-    const validUntil = grantForm.validUntil
-      ? Math.floor(new Date(grantForm.validUntil).getTime() / 1000)
-      : 0;
-    const remainingWrites = parseInt(grantForm.remainingWrites) || 10;
-    const tx = await medicalPassport.grantHospitalPermission(
-      medicalSbtId,
-      grantForm.hospital,
-      validUntil,
-      remainingWrites
-    );
+    // 병원이 requestPermission을 통해 등록한 대기 중인 요청을 승인
+    const tx = await medicalPassport.approvePermission(medicalSbtId, grantForm.hospital);
     await tx.wait();
     // DB에도 병원 연결 기록
     try {
@@ -265,9 +257,9 @@ const handleGrant = async () => {
         }),
       });
     } catch (_) {}
-    showToast("병원 권한이 부여되었습니다!");
+    showToast("병원 권한이 승인되었습니다!");
     setGrantModal(false);
-    setGrantForm({ hospital:"", validUntil:"", remainingWrites:"10" });
+    setGrantForm({ hospital:"" });
   } catch(e) { showToast(e.message, "error"); }
   finally { setGranting(false); }
 };
@@ -340,15 +332,13 @@ return (
       <div className={"modal-overlay"+(grantModal?" open":"")} onClick={() => setGrantModal(false)}>
         <div className="modal" onClick={e=>e.stopPropagation()} style={{ maxWidth:460 }}>
           <button className="modal-close" onClick={() => setGrantModal(false)}>✕</button>
-          <div className="modal-title">🏥 병원 권한 부여</div>
-          <div className="modal-sub">병원 지갑 주소에 진료 기록 추가 권한을 부여합니다.</div>
+          <div className="modal-title">🏥 병원 권한 승인</div>
+          <div className="modal-sub">병원의 진료 권한 요청을 승인합니다.</div>
           <div style={{ background:"rgba(124,58,237,0.08)", border:"1px solid rgba(124,58,237,0.3)", padding:"12px 16px", marginBottom:20, fontSize:12, color:"var(--muted)", borderRadius:8 }}>
-            ⚠️ 권한을 부여하면 해당 병원이 내 반려동물 의료 기록에 진료 내용을 추가할 수 있습니다.
+            ⚠️ 병원이 먼저 권한 요청(requestPermission)을 제출한 경우에만 승인됩니다. 승인 시 해당 병원이 의료 기록을 추가할 수 있습니다.
           </div>
           {[
             ["병원 지갑 주소 *", <input key="h" className="form-input" placeholder="0x..." value={grantForm.hospital} onChange={e=>setGrantForm(f=>({...f,hospital:e.target.value}))} style={{fontFamily:"'Space Mono',monospace",fontSize:11}} />],
-            ["권한 만료일 (선택)", <input key="v" type="date" className="form-input" value={grantForm.validUntil} onChange={e=>setGrantForm(f=>({...f,validUntil:e.target.value}))} />],
-            ["최대 기록 횟수", <input key="r" type="number" className="form-input" value={grantForm.remainingWrites} min="1" max="999" onChange={e=>setGrantForm(f=>({...f,remainingWrites:e.target.value}))} />],
           ].map(([label,input]) => (
             <div className="form-group" key={label} style={{ marginBottom:12 }}><label className="form-label">{label}</label>{input}</div>
           ))}
@@ -468,16 +458,19 @@ export function HomePage({ setPage, state }) {
 }
 
 /* ───────────── RegisterPage ───────────── */
+const NODE_API_FOR_UPLOAD = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+
 export function RegisterPage({ state, registerPet, connectWallet, showToast, setPage }) {
   const [form, setForm] = useState({ name: '', species: '강아지', gender: '남아', birthDate: '', adoptDate: '', imageUrl: null });
+  const [imagePreview, setImagePreview] = useState(null); // 미리보기용 (로컬 objectURL)
+  const [imageFile, setImageFile] = useState(null);       // 실제 업로드할 파일
   const [loading, setLoading] = useState(false);
 
   const handleImage = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setForm(f => ({ ...f, imageUrl: reader.result }));
-    reader.readAsDataURL(file);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file)); // 미리보기만 objectURL로
   };
 
   const handleSubmit = async () => {
@@ -485,7 +478,17 @@ export function RegisterPage({ state, registerPet, connectWallet, showToast, set
     if (!form.adoptDate) { showToast('입양일은 필수입니다.', 'error'); return; }
     setLoading(true);
     try {
-      await registerPet(form);
+      let imageUrl = form.imageUrl;
+      // 새 이미지가 선택된 경우 서버에 업로드하여 URL 획득
+      if (imageFile) {
+        const fd = new FormData();
+        fd.append('file', imageFile);
+        const res = await fetch(`${NODE_API_FOR_UPLOAD}/images/upload`, { method: 'POST', body: fd, credentials: 'include' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || '이미지 업로드 실패');
+        imageUrl = data.imageUrl;
+      }
+      await registerPet({ ...form, imageUrl });
       showToast('반려동물 등록 완료!');
       setTimeout(() => setPage('mypage'), 800);
     } catch (e) {
@@ -554,13 +557,13 @@ export function RegisterPage({ state, registerPet, connectWallet, showToast, set
               display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
               gap:8, border:'2px dashed var(--border)', borderRadius:12, padding:'28px 20px',
               cursor:'pointer', transition:'border-color 0.2s',
-              background: form.imageUrl ? 'transparent' : 'var(--surface)',
+              background: imagePreview ? 'transparent' : 'var(--surface)',
             }}
             onMouseEnter={e => e.currentTarget.style.borderColor='var(--accent)'}
             onMouseLeave={e => e.currentTarget.style.borderColor='var(--border)'}
             >
-              {form.imageUrl
-                ? <><img src={form.imageUrl} style={{ width:80, height:80, borderRadius:'50%', objectFit:'cover', border:'2px solid var(--accent)' }} /><span style={{ fontSize:12, color:'var(--muted)' }}>클릭해서 변경</span></>
+              {imagePreview
+                ? <><img src={imagePreview} style={{ width:80, height:80, borderRadius:'50%', objectFit:'cover', border:'2px solid var(--accent)' }} /><span style={{ fontSize:12, color:'var(--muted)' }}>클릭해서 변경</span></>
                 : <><span style={{ fontSize:32 }}>📷</span><span style={{ fontSize:13, color:'var(--muted)' }}>클릭해서 사진 업로드</span><span style={{ fontSize:11, color:'var(--muted)', opacity:0.6 }}>JPG, PNG, GIF 지원</span></>
               }
             </label>
@@ -576,8 +579,8 @@ export function RegisterPage({ state, registerPet, connectWallet, showToast, set
           <div className="preview-label">미리보기</div>
           <div className="preview-card">
             <div className="preview-img">
-              {form.imageUrl
-                ? <img src={form.imageUrl} style={{ width:'100%', height:'100%', objectFit:'cover', borderRadius:'50%' }} />
+              {imagePreview
+                ? <img src={imagePreview} style={{ width:'100%', height:'100%', objectFit:'cover', borderRadius:'50%' }} />
                 : EMOJI[form.species] || '🐾'
               }
             </div>
@@ -737,6 +740,7 @@ export function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectW
   const [mintSuccess, setMintSuccess] = useState(null);
   const [selectedNft, setSelectedNft] = useState(null);
   const [nftForm, setNftForm] = useState({ imageUrl: null, description: '' });
+  const [nftImageFile, setNftImageFile] = useState(null); // 실제 업로드할 파일
   const [downloadModal, setDownloadModal] = useState(false);
   const [pdfModal, setPdfModal] = useState(false);
   const [inquiryModal, setInquiryModal] = useState(false);
@@ -753,7 +757,17 @@ export function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectW
   const handleMint = async (type) => {
     setMinting(true);
     try {
-      const result = type === 'sbt' ? await issueSbt() : await issueNft(nftForm);
+      let mintData = nftForm;
+      if (type === 'nft' && nftImageFile) {
+        const fd = new FormData();
+        fd.append('file', nftImageFile);
+        const NODE_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+        const uploadRes = await fetch(`${NODE_API}/images/upload`, { method: 'POST', body: fd, credentials: 'include' });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.message || '이미지 업로드 실패');
+        mintData = { ...nftForm, imageUrl: uploadData.imageUrl };
+      }
+      const result = type === 'sbt' ? await issueSbt() : await issueNft(mintData);
       const issuance = type === 'sbt' ? result.issuance.sbt : result.issuance.nfts?.slice(-1)[0];
       setMintSuccess({ type: type.toUpperCase(), tokenId: issuance?.tokenId, hash: issuance?.transactionHash });
       if (type === 'sbt') showToast('🎮 SBT 발급 완료! NFT 교환권 3개가 지급되었습니다.');
@@ -767,13 +781,12 @@ export function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectW
   const handleNftImage = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setNftForm(f => ({ ...f, imageUrl: ev.target.result }));
-    reader.readAsDataURL(file);
+    setNftImageFile(file);
+    setNftForm(f => ({ ...f, imageUrl: URL.createObjectURL(file) })); // 미리보기용 objectURL
   };
 
   const closeModal = () => {
-    setSbtModal(false); setNftModal(false); setMintSuccess(null); setNftForm({ imageUrl: null, description: '' });
+    setSbtModal(false); setNftModal(false); setMintSuccess(null); setNftForm({ imageUrl: null, description: '' }); setNftImageFile(null);
     setDownloadModal(false); setPdfModal(false); setInquiryModal(false);
     setInquirySubmitted(false); setInquiryForm({ category: '일반 문의', title: '', content: '' });
   };

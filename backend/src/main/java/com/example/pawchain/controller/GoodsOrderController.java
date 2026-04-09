@@ -79,14 +79,14 @@ public class GoodsOrderController {
 
     // ✅ 주소 기반 조회
     @GetMapping("/owner/{address}")
-    public List<GoodsOrder> getMyOrders(@PathVariable String address) {
+    public List<GoodsOrder> getMyOrders(@PathVariable("address") String address) {
         return goodsOrderRepository
                 .findByOwnerAddressIgnoreCaseOrderByCreatedAtDesc(address.toLowerCase());
     }
 
     // ✅ ID 단건 조회 (추가)
     @GetMapping("/id/{id}")
-    public ResponseEntity<?> getOrderById(@PathVariable Long id) {
+    public ResponseEntity<?> getOrderById(@PathVariable("id") Long id) {
         return goodsOrderRepository.findByIdQuery(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -95,7 +95,7 @@ public class GoodsOrderController {
     // ✅ 상태 변경
     @PatchMapping("/id/{id}/status")
     public ResponseEntity<?> updateStatus(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody Map<String, String> body) {
 
         String statusStr = body.get("status");

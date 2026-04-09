@@ -37,7 +37,7 @@ public class ImageUploadController {
      */
     @PostMapping("/pet/{petId}")
     public ResponseEntity<?> uploadPetImage(
-        @PathVariable Long petId,
+        @PathVariable("petId") Long petId,
         @RequestParam("file") MultipartFile file
     ) {
         try {

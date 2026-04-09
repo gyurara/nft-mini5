@@ -12,8 +12,8 @@ const CHAIN_CONFIG = {
   },
 };
 
-const PET_SBT_ADDRESS = import.meta.env.VITE_PET_SBT_ADDRESS || '0x149c3A733A5344B3F39361930A90B7E384F9D8E8';
-const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0x3885d03aFccCE567BddD6415CCafe4483f4646c6';
+const PET_SBT_ADDRESS = import.meta.env.VITE_PET_SBT_ADDRESS || '0x1FB4833932025CfAE9Fa95209Fdb3Df565d1F466';
+const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0x0412Edf2C428B3C97BF2c4b4a06fe9e721cb914e';
 
 const PET_SBT_ABI = [
   'function getPetTokenIds(address owner) view returns (uint256[])',
@@ -24,7 +24,8 @@ const PET_SBT_ABI = [
 const MEDICAL_PASSPORT_ABI = [
   'function mintMedicalPassport(uint256 ownerSbtId, string initialSummaryURI) returns (uint256)',
   'function appendMedicalRecord(uint256 medicalSbtId, string recordURI, bytes32 dataHash, uint64 visitDate, uint32 schemaVersion, string updatedSummaryURI) returns (uint256)',
-  'function grantHospitalPermission(uint256 medicalSbtId, address hospital, uint64 validUntil, uint32 remainingWrites)',
+  'function approvePermission(uint256 medicalSbtId, address hospital)',
+  'function rejectPermission(uint256 medicalSbtId, address hospital)',
   'function revokeHospitalPermission(uint256 medicalSbtId, address hospital)',
   'function getPassportInfo(uint256 medicalSbtId) view returns (tuple(uint256 linkedOwnerSbtId, uint64 createdAt, uint64 lastVisitDate, uint32 latestSchemaVersion, uint32 totalRecords))',
   'function getRecord(uint256 medicalSbtId, uint256 recordIndex) view returns (tuple(address hospital, string recordURI, bytes32 dataHash, uint64 visitDate, uint32 schemaVersion, uint64 createdAt))',
@@ -32,6 +33,9 @@ const MEDICAL_PASSPORT_ABI = [
   'function canAppendRecord(uint256 medicalSbtId, address hospital) view returns (bool)',
   'function medicalSbtByOwnerSbt(uint256 ownerSbtId) view returns (uint256)',
   'function getPermission(uint256 medicalSbtId, address hospital) view returns (tuple(bool allowed, uint64 validUntil, uint32 remainingWrites))',
+  'function getPendingPermissionRequest(uint256 medicalSbtId, address hospital) view returns (tuple(bool exists, uint64 validUntil, uint32 remainingWrites, uint64 requestedAt, uint256 paidAmount))',
+  'function requestPermission(uint256 medicalSbtId, uint64 validUntil, uint32 remainingWrites) payable',
+  'function permissionRequestFee() view returns (uint256)',
 ];
 
 export async function connectWallet() {

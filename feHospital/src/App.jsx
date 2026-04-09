@@ -13,7 +13,9 @@ async function walletLogin(walletAddress) {
     credentials: 'include',
     body: JSON.stringify({ walletAddress, role: 'ORG' }),
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || '백엔드 로그인 실패');
+  return data;
 }
 
 async function walletLogout() {
@@ -66,9 +68,31 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    getConnectedAccount().then(acc => { if (acc) setAccount(acc); });
+    getConnectedAccount().then(async acc => {
+      if (acc) {
+        try {
+          await walletLogin(acc);
+          setAccount(acc);
+        } catch (e) {
+          // 자동 연결 실패 시 에러는 조용히 무시 (수동 연결 유도)
+        }
+      }
+    });
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', accs => setAccount(accs[0] || null));
+      window.ethereum.on('accountsChanged', async accs => {
+        const newAcc = accs[0] || null;
+        if (newAcc) {
+          try {
+            await walletLogin(newAcc);
+            setAccount(newAcc);
+          } catch (_) {
+            setAccount(null);
+          }
+        } else {
+          setAccount(null);
+          walletLogout().catch(() => {});
+        }
+      });
     }
   }, []);
 
@@ -81,9 +105,8 @@ export default function App() {
   const handleConnect = async () => {
     try {
       const acc = await connectWallet();
-      setAccount(acc);
-      // 지갑 주소로 백엔드 세션 자동 생성
       const res = await walletLogin(acc);
+      setAccount(acc);
       if (res.user?.role === 'ORG') {
         showToast(`병원 계정으로 연결되었습니다. (${res.user.name})`);
       } else {

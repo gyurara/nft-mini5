@@ -27,6 +27,8 @@ public class Pet {
 
     private String birthDate;
 
+    private String adoptDate;
+
     private String txHash;
 
     private Long tokenId;

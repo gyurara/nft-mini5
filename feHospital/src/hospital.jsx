@@ -157,12 +157,13 @@ export default function HospitalPage({ account, showToast }) {
       // DB(Spring Boot)에도 저장
       try {
         const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
-        await fetch(`${ANIMAL_API}/record/add`, {
+        const dbRes = await fetch(`${ANIMAL_API}/record/add`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             petSbtId: Number(petSbtId),
-            ownerAddress: reqForm.ownerAddress || null,
+            ownerAddress: reqForm.ownerAddress?.trim() || undefined,
             vetAddress: account,
             recordType: '진료',
             diagnosis: form.diagnosis,
@@ -172,7 +173,15 @@ export default function HospitalPage({ account, showToast }) {
             visitDate,
           }),
         });
-      } catch (_) {}
+        if (!dbRes.ok) {
+          const errData = await dbRes.json().catch(() => ({}));
+          console.warn('DB 저장 실패:', errData);
+          showToast(`블록체인 기록은 완료됐지만 DB 저장에 실패했습니다: ${errData.message || dbRes.status}`, 'error');
+        }
+      } catch (dbErr) {
+        console.warn('DB 저장 요청 오류:', dbErr);
+        showToast('블록체인 기록은 완료됐지만 DB 저장 중 오류가 발생했습니다.', 'error');
+      }
 
       setRecords(prev => [{ visitDate, diagnosis: form.diagnosis, treatment: form.treatment, hospital: form.hospital, memo: form.memo }, ...prev]);
       setForm({ diagnosis: '', treatment: '', hospital: '', memo: '', visitDate: new Date().toISOString().split('T')[0] });

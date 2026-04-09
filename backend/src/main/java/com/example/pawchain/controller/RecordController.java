@@ -50,11 +50,13 @@ public class RecordController {
         MedicalRecord record = new MedicalRecord();
         record.setPetSbtId(petSbtId);
 
-        if (body.containsKey("ownerAddress")) {
-            record.setOwnerAddress(getStr(body, "ownerAddress").toLowerCase());
+        String ownerAddress = getStr(body, "ownerAddress");
+        if (!ownerAddress.isBlank()) {
+            record.setOwnerAddress(ownerAddress.toLowerCase());
         }
-        if (body.containsKey("vetAddress")) {
-            record.setVetAddress(getStr(body, "vetAddress").toLowerCase());
+        String vetAddress = getStr(body, "vetAddress");
+        if (!vetAddress.isBlank()) {
+            record.setVetAddress(vetAddress.toLowerCase());
         }
 
         record.setRecordType(getStr(body, "recordType").isBlank() ? "진료" : getStr(body, "recordType"));
@@ -78,7 +80,7 @@ public class RecordController {
      * 복호화된 값으로 반환
      */
     @GetMapping("/{petSbtId}")
-    public ResponseEntity<Map<String, Object>> getRecords(@PathVariable Long petSbtId) {
+    public ResponseEntity<Map<String, Object>> getRecords(@PathVariable("petSbtId") Long petSbtId) {
         List<MedicalRecord> records = recordRepository.findByPetSbtIdOrderByVisitDateDesc(petSbtId);
         List<Map<String, Object>> decrypted = records.stream()
                 .map(this::toDecryptedMap)

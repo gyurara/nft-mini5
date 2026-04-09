@@ -1,12 +1,34 @@
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const multer = require('multer');
 const { createPetServiceApp, AppError } = require('./logic/src');
 const { MySqlPetProfileRepository, createMySqlPool } = require('./logic/src/repositories/mysql-pet-profile-repository');
+
+// ─── 이미지 업로드 설정 (multer) ──────────────────────────────────────────────
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
+  },
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('이미지 파일만 업로드 가능합니다.'));
+  },
+});
 
 // ─── AES-256-CBC 암호화 / 복호화 ──────────────────────────────────────────────
 // 키는 정확히 32바이트여야 함 (환경변수 AES_SECRET_KEY)
@@ -106,6 +128,9 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// 업로드된 이미지 정적 서빙
+app.use('/uploads', express.static(UPLOADS_DIR));
+
 // 세션 설정
 app.use(session({
   secret: process.env.SESSION_SECRET || 'pawchain-secret-change-in-production',
@@ -113,10 +138,19 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: false,          // HTTPS 환경이면 true로 변경
+    secure: false,
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24시간
   },
 }));
+
+// ─── 이미지 업로드 엔드포인트 ────────────────────────────────────────────────────
+// POST /api/images/upload  (multipart/form-data, field: "file")
+app.post('/api/images/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ message: '파일이 없습니다.' });
+  const imageUrl = `/uploads/${req.file.filename}`;
+  res.json({ imageUrl });
+});
 
 // ─── 인증 미들웨어 ─────────────────────────────────────────────────────────────
 
@@ -299,8 +333,8 @@ app.post('/api/auth/wallet-login', async (req, res) => {
 
     // 다른 계정이 이 지갑을 이미 사용 중인지 확인
     const [walletRows] = await dbPool.execute(
-      'SELECT * FROM users WHERE wallet_address = ?',
-      [normalized]
+      'SELECT * FROM users WHERE wallet_address = ? OR email = ?',
+      [normalized, `${normalized}@wallet.local`]
     );
 
     let user;
@@ -308,6 +342,14 @@ app.post('/api/auth/wallet-login', async (req, res) => {
     if (walletRows.length > 0) {
       // 이미 이 지갑으로 등록된 계정 존재 → 해당 계정으로 로그인
       user = walletRows[0];
+      // wallet_address가 비어있으면 업데이트
+      if (!user.wallet_address) {
+        await dbPool.execute(
+          'UPDATE users SET wallet_address = ? WHERE id = ?',
+          [normalized, user.id]
+        );
+        user.wallet_address = normalized;
+      }
     } else if (req.session.user) {
       // 세션이 있는데 지갑이 없는 경우 → 현재 로그인 계정에 지갑 추가
       await dbPool.execute(
@@ -378,7 +420,7 @@ app.get('/api/users/search', requireLogin, async (req, res) => {
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', requireLogin, async (req, res) => {
   try {
     const result = await service.registerPet(req.body);
     res.json(result);
@@ -387,7 +429,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-app.post('/api/issue-sbt', async (req, res) => {
+app.post('/api/issue-sbt', requireLogin, async (req, res) => {
   try {
     const { account } = req.body || {};
     const result = await service.issueSbt(account);
@@ -397,7 +439,7 @@ app.post('/api/issue-sbt', async (req, res) => {
   }
 });
 
-app.post('/api/issue-nft', async (req, res) => {
+app.post('/api/issue-nft', requireLogin, async (req, res) => {
   try {
     const { account } = req.body || {};
     const result = await service.issueNft(account);
@@ -409,7 +451,7 @@ app.post('/api/issue-nft', async (req, res) => {
 
 // 온체인 SBT 민팅 완료 후 DB 동기화
 // Body: { account, tokenId, transactionHash, tokenUri, metadata, mintedAt }
-app.post('/api/sync-sbt', async (req, res) => {
+app.post('/api/sync-sbt', requireLogin, async (req, res) => {
   try {
     const { account, tokenId, transactionHash, tokenUri, metadata, mintedAt } = req.body || {};
     if (!account || tokenId == null) {
@@ -432,7 +474,7 @@ app.post('/api/sync-sbt', async (req, res) => {
 
 // 온체인 NFT 민팅 완료 후 DB 동기화 + nft_count 증가
 // Body: { account, tokenId, petSbtTokenId, transactionHash, tokenUri, metadata, paidWei, mintedAt }
-app.post('/api/sync-nft', async (req, res) => {
+app.post('/api/sync-nft', requireLogin, async (req, res) => {
   try {
     const { account, tokenId, petSbtTokenId, transactionHash, tokenUri, metadata, paidWei, mintedAt } = req.body || {};
     if (!account || tokenId == null) {
@@ -456,7 +498,7 @@ app.post('/api/sync-nft', async (req, res) => {
 
 // NFT 할인권 교환 (굿즈 주문 시 nft_count 차감)
 // Body: { account }
-app.post('/api/use-nft-coupon', async (req, res) => {
+app.post('/api/use-nft-coupon', requireLogin, async (req, res) => {
   try {
     const { account } = req.body || {};
     if (!account) {
@@ -512,7 +554,7 @@ app.get('/api/token-state/:account', async (req, res) => {
 // ─── 병원 SSE / 승인 요청 API ─────────────────────────────────────────────────
 
 // SSE: 보호자가 알림 구독 (로그인 필요)
-app.get('/api/notifications/:ownerAddress', requireLogin, async (req, res) => {
+app.get('/api/notifications/:ownerAddress', async (req, res) => {
   const ownerAddress = req.params.ownerAddress.toLowerCase();
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -524,6 +566,11 @@ app.get('/api/notifications/:ownerAddress', requireLogin, async (req, res) => {
     try { sseClients.get(ownerAddress).end(); } catch (_) {}
   }
   sseClients.set(ownerAddress, res);
+
+  // heartbeat: 연결 유지 (30초마다 ping)
+  const heartbeat = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch (_) { clearInterval(heartbeat); }
+  }, 30000);
 
   // 연결 시 DB에서 대기 중인 요청 즉시 전송
   try {
@@ -547,18 +594,47 @@ app.get('/api/notifications/:ownerAddress', requireLogin, async (req, res) => {
     console.error('SSE 대기 요청 로드 실패:', err.message);
   }
 
-  req.on('close', () => sseClients.delete(ownerAddress));
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sseClients.delete(ownerAddress);
+  });
 });
 
-// 병원이 연결 상태 확인
+// 병원이 petSbtId로 연결된 보호자 주소 조회
+app.get('/api/vet/owner-by-pet/:petSbtId', requireLogin, async (req, res) => {
+  try {
+    const petSbtId = req.params.petSbtId;
+    const vetAddress = req.session.user.walletAddress?.toLowerCase();
+    if (!vetAddress) return res.status(400).json({ code: 'WALLET_NOT_LINKED', message: '지갑 주소가 없습니다.' });
+    const [rows] = await dbPool.execute(
+      'SELECT owner_address FROM hospital_connections WHERE pet_sbt_id = ? AND vet_address = ? AND connected = 1',
+      [petSbtId, vetAddress]
+    );
+    if (rows.length === 0) return res.json({ ownerAddress: null });
+    res.json({ ownerAddress: rows[0].owner_address });
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+// 병원이 연결 상태 확인 (petSbtId 쿼리 파라미터로 특정 동물 기준 확인 가능)
 app.get('/api/vet/check-access/:ownerAddress/:vetAddress', requireLogin, async (req, res) => {
   try {
     const ownerAddress = req.params.ownerAddress.toLowerCase();
     const vetAddress = req.params.vetAddress.toLowerCase();
-    const [rows] = await dbPool.execute(
-      'SELECT connected FROM hospital_connections WHERE owner_address = ? AND vet_address = ?',
-      [ownerAddress, vetAddress]
-    );
+    const { petSbtId } = req.query;
+    let rows;
+    if (petSbtId) {
+      [rows] = await dbPool.execute(
+        'SELECT connected FROM hospital_connections WHERE owner_address = ? AND vet_address = ? AND pet_sbt_id = ?',
+        [ownerAddress, vetAddress, petSbtId]
+      );
+    } else {
+      [rows] = await dbPool.execute(
+        'SELECT connected FROM hospital_connections WHERE owner_address = ? AND vet_address = ?',
+        [ownerAddress, vetAddress]
+      );
+    }
     res.json({ connected: rows.length > 0 && rows[0].connected === 1 });
   } catch (error) {
     handleError(error, res);
@@ -587,21 +663,21 @@ app.post('/api/vet/request-approval', requireOrg, async (req, res) => {
     const normalizedOwner = ownerAddress.toLowerCase();
     const normalizedVet = vetAddress.toLowerCase();
 
-    // 이미 연결된 병원이면 재요청 불필요
+    // 해당 동물(petSbtId) 기준으로 이미 연결된 경우만 재요청 불필요
     const [existing] = await dbPool.execute(
-      'SELECT connected FROM hospital_connections WHERE owner_address = ? AND vet_address = ?',
-      [normalizedOwner, normalizedVet]
+      'SELECT connected FROM hospital_connections WHERE owner_address = ? AND vet_address = ? AND pet_sbt_id = ?',
+      [normalizedOwner, normalizedVet, petSbtId]
     );
     if (existing.length > 0 && existing[0].connected === 1) {
       return res.status(409).json({ code: 'ALREADY_CONNECTED', message: '이미 연결된 병원입니다.' });
     }
 
-    const approvalId = `${normalizedVet}-${petSbtId}-${Date.now()}`;
+    const approvalId = `${normalizedVet}-${petSbtId}`;
 
     await dbPool.execute(
       `INSERT INTO vet_connection_requests (id, pet_sbt_id, vet_address, vet_name, owner_address, message)
        VALUES (?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE message = VALUES(message)`,
+       ON DUPLICATE KEY UPDATE message = VALUES(message), vet_name = VALUES(vet_name), requested_at = NOW()`,
       [approvalId, petSbtId, normalizedVet, vetName, normalizedOwner, message || '']
     );
 
@@ -665,13 +741,12 @@ app.post('/api/vet/respond-approval', requireLogin, async (req, res) => {
         );
 
         // Spring Boot pet_vet_approvals 동기화
-        const realTxHash = txHash || ('0x' + require('crypto').randomBytes(32).toString('hex').substring(0, 64) + '00');
         try {
           await conn.execute(
             `INSERT INTO pet_vet_approvals (pet_sbt_id, owner_address, vet_address, owner_signature, active, tx_hash, created_at, updated_at)
-             VALUES (?, ?, ?, 'sse-approved', 1, ?, NOW(), NOW())
+             VALUES (?, ?, ?, 'owner-approved', 1, ?, NOW(), NOW())
              ON DUPLICATE KEY UPDATE active = 1, tx_hash = VALUES(tx_hash), updated_at = NOW()`,
-            [approval.pet_sbt_id, normalizedOwner, approval.vet_address, realTxHash]
+            [approval.pet_sbt_id, normalizedOwner, approval.vet_address, txHash || null]
           );
         } catch (syncErr) {
           console.warn('pet_vet_approvals 동기화 실패 (무시):', syncErr.message);
@@ -881,8 +956,8 @@ async function main() {
     petProfileRepository: repository,
   });
 
-  app.listen(PORT, () => {
-    console.log(`API server listening on http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`API server listening on http://0.0.0.0:${PORT}`);
   });
 }
 

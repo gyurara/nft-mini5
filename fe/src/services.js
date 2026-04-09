@@ -165,7 +165,7 @@ export function createRegisterPetService({ petProfileRepository }) {
       const profile = {
         account: pet.account,
         pet: {
-          id: crypto.randomUUID(),
+          id: ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)),
           name: pet.name,
           species: pet.species,
           gender: pet.gender || null,
@@ -252,7 +252,7 @@ export function createIssueNftService({ sessionGateway, contractGateway, petProf
 
       try {
         const requestTokenUri = tokenUriFactory.createNftTokenUri({ account, pet: profile.pet });
-        const mintResult = await contractGateway.mintNft({ account, tokenUri: requestTokenUri });
+        const mintResult = await contractGateway.mintNft({ account, tokenUri: requestTokenUri, petSbtId: profile.sbt.tokenId });
         const tokenId = extractTokenId(mintResult, 'NFTMinted');
         // ★ 이미지 데이터 포함하여 저장
         const petWithNftData = { ...profile.pet, imageUrl: nftData.imageUrl || profile.pet.imageUrl };
@@ -332,9 +332,9 @@ export function createGetGoodsPreviewService({ sessionGateway }) {
 }
 
 /* ───────────── 블록체인 게이트웨이 ───────────── */
-const PET_SBT_ADDRESS = '0x149c3A733A5344B3F39361930A90B7E384F9D8E8';
-const MEMORY_NFT_ADDRESS = '0x3fB61aC6C00c58092E418b4E7bC1B0Cfea72eb2d';
-const MEDICAL_PASSPORT_ADDRESS = '0x3885d03aFccCE567BddD6415CCafe4483f4646c6';
+const PET_SBT_ADDRESS = import.meta.env.VITE_PET_SBT_ADDRESS || '0x1FB4833932025CfAE9Fa95209Fdb3Df565d1F466';
+const MEMORY_NFT_ADDRESS = import.meta.env.VITE_MEMORY_NFT_ADDRESS || '0x9BfBC24bb4f7c273463bD8376bb1ccD00eCBe55C';
+const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0x0412Edf2C428B3C97BF2c4b4a06fe9e721cb914e';
 
 export async function createRealGateways() {
   const provider = new ethers.BrowserProvider(window.ethereum);
@@ -350,7 +350,6 @@ export async function createRealGateways() {
   const medicalPassport = new ethers.Contract(MEDICAL_PASSPORT_ADDRESS, [
   'function mintMedicalPassport(uint256 ownerSbtId, string initialSummaryURI) returns (uint256)',
   'function appendMedicalRecord(uint256 medicalSbtId, string recordURI, bytes32 dataHash, uint64 visitDate, uint32 schemaVersion, string updatedSummaryURI) returns (uint256)',
-  'function grantHospitalPermission(uint256 medicalSbtId, address hospital, uint64 validUntil, uint32 remainingWrites)',
   'function revokeHospitalPermission(uint256 medicalSbtId, address hospital)',
   'function getPassportInfo(uint256 medicalSbtId) view returns (tuple(uint256 linkedOwnerSbtId, uint64 createdAt, uint64 lastVisitDate, uint32 latestSchemaVersion, uint32 totalRecords))',
   'function getRecord(uint256 medicalSbtId, uint256 recordIndex) view returns (tuple(address hospital, string recordURI, bytes32 dataHash, uint64 visitDate, uint32 schemaVersion, uint64 createdAt))',
@@ -393,11 +392,10 @@ export async function createRealGateways() {
       const tokenId = event?.args?.tokenId;
       return { tokenId, hash: receipt.hash, events: [{ eventName: 'SBTMinted', args: { tokenId } }] };
     },
-    async mintNft({ account, tokenUri }) {
-      const petTokenIds = await petSBT.getPetTokenIds(account);
-      const petSbtId = petTokenIds[0];
+    async mintNft({ account, tokenUri, petSbtId }) {
+      const petSbtIdToUse = petSbtId ?? (await petSBT.getPetTokenIds(account))[0];
       const price = await memoryNFT.mintPrice();
-      const tx = await memoryNFT.mintMemoryNFT(petSbtId, tokenUri, { value: price });
+      const tx = await memoryNFT.mintMemoryNFT(petSbtIdToUse, tokenUri, { value: price });
       const receipt = await tx.wait();
       const event = receipt.logs
         .map(log => { try { return memoryNFT.interface.parseLog(log); } catch { return null; } })
@@ -448,6 +446,26 @@ export function usePetServiceApp() {
   const nftCoupons = nftCouponsMap[activePetIdResolved] || 0;
   const goodsCoupons = goodsCouponsMap[activePetIdResolved] || 0;
 
+  // --- MetaMask 계정 변경 감지 ---
+  useEffect(() => {
+    if (!window.ethereum) return;
+    const handleAccountsChanged = (accs) => {
+      const newAcc = accs[0] || null;
+      if (!newAcc) {
+        api.walletLogout().catch(() => {});
+        setAccount(null); setProfiles([]); setActivePetId(null); setTokenStates({});
+        repositoryRef.current = new InMemoryPetProfileRepository();
+        appRef.current = null;
+      } else {
+        setAccount(newAcc);
+        setTokenStates({});
+        api.walletLogin(newAcc).catch(() => {});
+      }
+    };
+    window.ethereum.on('accountsChanged', handleAccountsChanged);
+    return () => window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+  }, []);
+
   // --- 상태 복원 ---
   useEffect(() => {
     try {
@@ -468,11 +486,46 @@ export function usePetServiceApp() {
       // 저장된 프로필을 메모리 저장소에 복원
       repositoryRef.current = new InMemoryPetProfileRepository();
       (saved.profiles || []).forEach(p => repositoryRef.current.savePetProfile(p));
+
+      // 페이지 새로고침 시 서버 세션 복원 + DB에서 펫 동기화
+      api.walletLogin(saved.account).catch(() => {});
     } catch (e) {
       console.warn('state restore failed', e);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // --- account 변경 시 DB에서 펫 동기화 ---
+  useEffect(() => {
+    if (!account) return;
+    api.getPetsFromDB(account).then(pets => {
+      if (!Array.isArray(pets) || pets.length === 0) return;
+      const repo = new InMemoryPetProfileRepository();
+      pets.forEach(pet => {
+        repo.savePetProfile({
+          account: account.toLowerCase(),
+          pet: {
+            id: String(pet.id),
+            name: pet.name,
+            species: pet.species,
+            gender: null,
+            birthDate: pet.birthDate || null,
+            adoptDate: null,
+            imageUrl: pet.s3ImageUrl || (pet.id ? localStorage.getItem(`petimage:${pet.id}`) : null) || null,
+            registrationNo: pet.registrationNo || null,
+            adoptDate: pet.adoptDate || null,
+            createdAt: pet.createdAt || new Date().toISOString(),
+            updatedAt: pet.createdAt || new Date().toISOString(),
+          },
+          sbt: pet.sbtTokenId != null ? { tokenId: pet.sbtTokenId, transactionHash: pet.txHash || null, mintedAt: null } : null,
+          nfts: pet.tokenId != null ? [{ tokenId: pet.tokenId, transactionHash: pet.txHash || null }] : [],
+        });
+      });
+      repositoryRef.current = repo;
+      refreshProfiles(account);
+    }).catch(e => console.error('DB pet sync failed:', e));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account]);
 
   // --- 상태 저장 ---
   useEffect(() => {
@@ -526,14 +579,47 @@ export function usePetServiceApp() {
     return all;
   }, []);
 
+  const loadPetsFromDB = useCallback(async (acc) => {
+    try {
+      const pets = await api.getPetsFromDB(acc);
+      if (!Array.isArray(pets) || pets.length === 0) return;
+      repositoryRef.current = new InMemoryPetProfileRepository();
+      pets.forEach(pet => {
+        const profile = {
+          account: acc.toLowerCase(),
+          pet: {
+            id: String(pet.id),
+            name: pet.name,
+            species: pet.species,
+            gender: null,
+            birthDate: pet.birthDate || null,
+            adoptDate: null,
+            imageUrl: pet.s3ImageUrl || (pet.id ? localStorage.getItem(`petimage:${pet.id}`) : null) || null,
+            registrationNo: pet.registrationNo || null,
+            adoptDate: pet.adoptDate || null,
+            createdAt: pet.createdAt || new Date().toISOString(),
+            updatedAt: pet.createdAt || new Date().toISOString(),
+          },
+          sbt: pet.sbtTokenId != null ? {
+            tokenId: pet.sbtTokenId,
+            transactionHash: pet.txHash || null,
+            mintedAt: null,
+          } : null,
+          nfts: pet.tokenId != null ? [{ tokenId: pet.tokenId, transactionHash: pet.txHash || null }] : [],
+        };
+        repositoryRef.current.savePetProfile(profile);
+      });
+      refreshProfiles(acc);
+    } catch (e) { console.error('loadPetsFromDB failed:', e); }
+  }, [refreshProfiles]);
+
   const connectWallet = useCallback(async () => {
     if (!window.ethereum) { alert('MetaMask를 설치해주세요.'); return; }
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     const acc = accounts[0];
     setAccount(acc);
     setTokenStates({});
-    refreshProfiles(acc);
-    try { await api.walletLogin(acc); } catch (_) {}
+    try { await api.walletLogin(acc); } catch (e) { console.error('walletLogin failed:', e); }
     // DB에서 nft_count 동기화
     try {
       const tokenState = await api.getTokenState(acc);
@@ -546,7 +632,7 @@ export function usePetServiceApp() {
       }
     } catch (_) {}
     return acc;
-  }, [refreshProfiles]);
+  }, [refreshProfiles, loadPetsFromDB]);
 
   const disconnectWallet = useCallback(async () => {
     try { await api.walletLogout(); } catch (_) {}
@@ -562,10 +648,10 @@ export function usePetServiceApp() {
     const result = await app.registerPetService.execute({ ...input, account });
     // be 서버 (pet_profiles 테이블)
     try { await api.registerPet({ ...input, account }); } catch (_) {}
-    // Spring Boot (pets 테이블)
+    // Spring Boot (pets 테이블) - image는 DB에 저장하지 않고 응답의 id만 사용
     try {
       const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
-      await fetch(`${ANIMAL_API}/pets`, {
+      const res = await fetch(`${ANIMAL_API}/pets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -574,9 +660,17 @@ export function usePetServiceApp() {
           species: input.species,
           type: input.gender || null,
           birthDate: input.birthDate || null,
-          image: input.imageUrl || null,
+          adoptDate: input.adoptDate || null,
+          s3ImageUrl: input.imageUrl || null,
         }),
       });
+      if (res.ok && input.imageUrl) {
+        const saved = await res.json();
+        // localStorage에도 캐싱 (오프라인 대비)
+        if (saved.id) {
+          try { localStorage.setItem(`petimage:${saved.id}`, input.imageUrl); } catch (_) {}
+        }
+      }
     } catch (_) {}
     refreshProfiles(account);
     setActivePetId(result.pet.id);
@@ -586,17 +680,32 @@ export function usePetServiceApp() {
   const issueSbt = useCallback(async (petId) => {
     const app = await getApp();
     const targetId = petId || activePetId;
+    if (!targetId) throw new Error('펫을 먼저 선택해주세요.');
     const result = await app.issueSbtService.execute(account, targetId);
     const { sessionGateway } = await createRealGateways();
     const newTs = await sessionGateway.getTokenState(account);
     setTokenStates(prev => ({ ...prev, [targetId]: newTs }));
     refreshProfiles(account);
 
-    // DB 동기화
+    // Node.js DB 동기화
     try {
       const issuance = result.issuance?.sbt;
       if (issuance) await api.syncSbt({ account, ...issuance });
-    } catch (_) {}
+    } catch (e) { console.error('syncSbt failed:', e); }
+
+    // Spring Boot pets 테이블 동기화 (DB에서 로드된 펫인 경우 숫자 ID)
+    try {
+      const issuance = result.issuance?.sbt;
+      const numericId = targetId && /^\d+$/.test(String(targetId)) ? targetId : null;
+      if (issuance && numericId) {
+        const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+        await fetch(`${ANIMAL_API}/pets/id/${numericId}/tokens`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sbtTokenId: issuance.tokenId, txHash: issuance.transactionHash }),
+        });
+      }
+    } catch (e) { console.error('Spring Boot sbt sync failed:', e); }
 
     if (result.nftCouponsGranted) {
       setNftCouponsMap(prev => ({ ...prev, [targetId]: (prev[targetId] || 0) + result.nftCouponsGranted }));
@@ -606,21 +715,36 @@ export function usePetServiceApp() {
   }, [account, activePetId, getApp, refreshProfiles]);
 
   const issueNft = useCallback(async (nftData = {}, petId) => {
-    const targetNftCoupons = nftCouponsMap[petId || activePetId] || 0;
+    const targetId = petId || activePetId;
+    if (!targetId) throw new Error('펫을 먼저 선택해주세요.');
+    const targetNftCoupons = nftCouponsMap[targetId] || 0;
     if (targetNftCoupons < 1) throw new Error('NFT 교환권이 필요합니다.');
     const app = await getApp();
-    const targetId = petId || activePetId;
     const result = await app.issueNftService.execute(account, nftData, targetId);
     const { sessionGateway } = await createRealGateways();
     const newTs = await sessionGateway.getTokenState(account);
     setTokenStates(prev => ({ ...prev, [targetId]: newTs }));
     refreshProfiles(account);
 
-    // DB 동기화
+    // Node.js DB 동기화
     try {
       const issuance = result.issuance?.nfts?.slice(-1)[0];
       if (issuance) await api.syncNft({ account, ...issuance });
-    } catch (_) {}
+    } catch (e) { console.error('syncNft failed:', e); }
+
+    // Spring Boot pets 테이블 동기화
+    try {
+      const issuance = result.issuance?.nfts?.slice(-1)[0];
+      const numericId = targetId && /^\d+$/.test(String(targetId)) ? targetId : null;
+      if (issuance && numericId) {
+        const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+        await fetch(`${ANIMAL_API}/pets/id/${numericId}/tokens`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tokenId: issuance.tokenId, txHash: issuance.transactionHash }),
+        });
+      }
+    } catch (e) { console.error('Spring Boot nft sync failed:', e); }
 
     setNftCouponsMap(prev => ({ ...prev, [targetId]: Math.max(0, (prev[targetId] || 0) - 1) }));
     if (result.goodsCouponGranted) {
@@ -636,7 +760,7 @@ export function usePetServiceApp() {
     const profile = petId
       ? repositoryRef.current.getProfileByPetId(account, petId)
       : repositoryRef.current.getPetProfileByAccount(account);
-    if (!profile?.sbt?.tokenId) throw new Error('SBT 토큰 ID가 없습니다. 먼저 SBT를 발급해주세요.');
+    if (!profile?.sbt || profile.sbt.tokenId == null) throw new Error('SBT 토큰 ID가 없습니다. 먼저 SBT를 발급해주세요.');
     const ownerSbtId = profile.sbt.tokenId;
     const existing = await medicalPassport.medicalSbtByOwnerSbt(ownerSbtId);
     if (Number(existing) !== 0) throw new Error('이미 의료 여권이 발급되어 있습니다.');
@@ -695,6 +819,7 @@ export function usePetServiceApp() {
       unlockedGoods: UNLOCK_TIERS.map(tier => ({ ...tier, isAvailable: (goodsCoupons || 0) >= tier.cost }))
     },
     connectWallet, disconnectWallet, registerPet, issueSbt, issueNft, redeemGoodsCoupon, addNftCouponFromMedical, mintMedicalPassport, setActivePetId, useDiscountCoupons,
+    getMyPage: useCallback(async () => { const app = await getApp(); return app.getMyPageService.execute(account); }, [account, getApp]),
     getGoodsPreview: useCallback(async () => { const app = await getApp(); return app.getGoodsPreviewService.execute(account); }, [account, getApp])
   };
 }

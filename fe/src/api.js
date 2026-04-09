@@ -1,4 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+const ANIMAL_API_BASE = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
 
 async function request(baseUrl, path, options = {}) {
   const res = await fetch(`${baseUrl}${path}`, {
@@ -65,5 +66,9 @@ export const api = {
   },
   useNftCoupon(account) {
     return apiRequest('/use-nft-coupon', { method: 'POST', body: JSON.stringify({ account }) });
+  },
+  getPetsFromDB(address) {
+    return fetch(`${ANIMAL_API_BASE}/pets/owner/${encodeURIComponent(address)}`)
+      .then(r => r.json());
   },
 };
