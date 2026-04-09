@@ -2,6 +2,11 @@
 .env
 .env.*
 !.env.example
+be/.env
+be/.env.*
+fe/.env
+fe/.env.*
+feHospital/.env
 
 # Dependencies
 node_modules/
@@ -54,3 +59,7 @@ Thumbs.db
 
 # Claude Code 로컬 설정
 .claude/
+
+# 기획서 / 작업 문서
+AniCode/
+/AniCode.*
