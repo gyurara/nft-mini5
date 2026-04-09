@@ -332,11 +332,29 @@ export function createGetGoodsPreviewService({ sessionGateway }) {
 }
 
 /* ───────────── 블록체인 게이트웨이 ───────────── */
-const PET_SBT_ADDRESS = import.meta.env.VITE_PET_SBT_ADDRESS || '0x1FB4833932025CfAE9Fa95209Fdb3Df565d1F466';
-const MEMORY_NFT_ADDRESS = import.meta.env.VITE_MEMORY_NFT_ADDRESS || '0x9BfBC24bb4f7c273463bD8376bb1ccD00eCBe55C';
-const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0x0412Edf2C428B3C97BF2c4b4a06fe9e721cb914e';
+const PET_SBT_ADDRESS = import.meta.env.VITE_PET_SBT_ADDRESS || '0xD04Ef2b3cc930e40da14F5a192313De5618e3Df4';
+const MEMORY_NFT_ADDRESS = import.meta.env.VITE_MEMORY_NFT_ADDRESS || '0x826Ac0088d0A43E1B227e283FdF471b5c4F6C598';
+const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0xBE5A3d79a49a2E9763148cdBff11D971f7f96912';
+
+const SEPOLIA_CHAIN_ID_HEX = import.meta.env.VITE_CHAIN_ID || '0xaa36a7';
+
+async function ensureSepoliaNetwork() {
+  const ethereum = window.ethereum;
+  const currentChainId = await ethereum.request({ method: 'eth_chainId' });
+  if (currentChainId === SEPOLIA_CHAIN_ID_HEX) return;
+  try {
+    await ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }] });
+  } catch (error) {
+    if (error?.code !== 4902) throw new Error('Sepolia 테스트넷으로 전환해주세요.');
+    await ethereum.request({
+      method: 'wallet_addEthereumChain',
+      params: [{ chainId: SEPOLIA_CHAIN_ID_HEX, chainName: 'Sepolia', rpcUrls: ['https://rpc.sepolia.org'], blockExplorerUrls: ['https://sepolia.etherscan.io'], nativeCurrency: { name: 'Sepolia ETH', symbol: 'SEP', decimals: 18 } }],
+    });
+  }
+}
 
 export async function createRealGateways() {
+  await ensureSepoliaNetwork();
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
 
@@ -384,23 +402,19 @@ export async function createRealGateways() {
 
   const contractGateway = {
     async mintSbt({ account, tokenUri }) {
+      // staticCall로 컨트랙트 반환값(tokenId)을 직접 획득 — 이벤트 파싱 불필요
+      const tokenId = await petSBT.registerPet.staticCall(tokenUri);
       const tx = await petSBT.registerPet(tokenUri);
       const receipt = await tx.wait();
-      const event = receipt.logs
-        .map(log => { try { return petSBT.interface.parseLog(log); } catch { return null; } })
-        .find(e => e?.name === 'PetRegistered');
-      const tokenId = event?.args?.tokenId;
       return { tokenId, hash: receipt.hash, events: [{ eventName: 'SBTMinted', args: { tokenId } }] };
     },
     async mintNft({ account, tokenUri, petSbtId }) {
       const petSbtIdToUse = petSbtId ?? (await petSBT.getPetTokenIds(account))[0];
       const price = await memoryNFT.mintPrice();
+      // staticCall로 컨트랙트 반환값(tokenId)을 직접 획득
+      const tokenId = await memoryNFT.mintMemoryNFT.staticCall(petSbtIdToUse, tokenUri, { value: price });
       const tx = await memoryNFT.mintMemoryNFT(petSbtIdToUse, tokenUri, { value: price });
       const receipt = await tx.wait();
-      const event = receipt.logs
-        .map(log => { try { return memoryNFT.interface.parseLog(log); } catch { return null; } })
-        .find(e => e?.name === 'MemoryNFTMinted');
-      const tokenId = event?.args?.tokenId;
       return { tokenId, hash: receipt.hash, events: [{ eventName: 'NFTMinted', args: { tokenId } }] };
     },
   };
@@ -615,6 +629,7 @@ export function usePetServiceApp() {
 
   const connectWallet = useCallback(async () => {
     if (!window.ethereum) { alert('MetaMask를 설치해주세요.'); return; }
+    await ensureSepoliaNetwork();
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     const acc = accounts[0];
     setAccount(acc);

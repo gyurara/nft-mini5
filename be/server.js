@@ -350,6 +350,11 @@ app.post('/api/auth/wallet-login', async (req, res) => {
         );
         user.wallet_address = normalized;
       }
+      // ORG 요청인데 USER 계정인 경우 → ORG로 role 업그레이드
+      if (newRole === 'ORG' && user.role === 'USER') {
+        await dbPool.execute('UPDATE users SET role = ? WHERE id = ?', ['ORG', user.id]);
+        user.role = 'ORG';
+      }
     } else if (req.session.user) {
       // 세션이 있는데 지갑이 없는 경우 → 현재 로그인 계정에 지갑 추가
       await dbPool.execute(

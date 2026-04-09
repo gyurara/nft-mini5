@@ -33,7 +33,6 @@ export default function HospitalPage({ account, showToast }) {
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const updatesChannelRef = useRef(null);
-  const initialLookupDone = useRef(false);
   const [form, setForm] = useState({
     diagnosis: '', treatment: '', hospital: '', memo: '',
     visitDate: new Date().toISOString().split('T')[0],
@@ -57,6 +56,23 @@ export default function HospitalPage({ account, showToast }) {
     if (!reqForm.petSbtId || !reqForm.ownerAddress) { showToast('SBT ID와 보호자 주소를 입력해주세요.', 'error'); return; }
     setReqLoading(true);
     try {
+      // 1. 컨트랙트 연결 및 의료 여권 ID 조회
+      const { medicalPassport } = await getContracts();
+      const mSbtId = await medicalPassport.medicalSbtByOwnerSbt(Number(reqForm.petSbtId));
+      if (Number(mSbtId) === 0) throw new Error('해당 펫의 의료 여권이 존재하지 않습니다. 보호자에게 먼저 의료 여권을 발급하도록 안내해주세요.');
+
+      // 2. 수수료 조회
+      const fee = await medicalPassport.permissionRequestFee();
+
+      // 3. 온체인 requestPermission 호출 (30일 유효, 10회 쓰기 허용)
+      const validUntil = Math.floor(Date.now() / 1000) + 30 * 24 * 3600;
+      const remainingWrites = 10;
+      showToast('MetaMask에서 트랜잭션을 승인해주세요...');
+      const tx = await medicalPassport.requestPermission(Number(mSbtId), validUntil, remainingWrites, { value: fee });
+      showToast('트랜잭션 처리 중...');
+      await tx.wait();
+
+      // 4. 보호자에게 DB 알림 전송 (SSE)
       await sendApprovalRequest({ petSbtId: reqForm.petSbtId, ownerAddress: reqForm.ownerAddress, message: reqForm.message });
       setReqSent(true);
       showToast('권한 요청이 전송되었습니다.');
@@ -77,12 +93,8 @@ export default function HospitalPage({ account, showToast }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (account && petSbtId && !initialLookupDone.current) {
-      initialLookupDone.current = true;
-      lookupPassport();
-    }
-  }, [account, petSbtId]);
+  // localStorage에서 복원된 petSbtId가 있어도 자동 조회하지 않음
+  // — 컨트랙트가 없을 때 지갑 연결 직후 오류 토스트가 뜨는 문제 방지
 
   const lookupPassport = async () => {
     if (!petSbtId.trim()) { showToast('PetSBT ID를 입력해주세요.', 'error'); return; }
@@ -160,7 +172,6 @@ export default function HospitalPage({ account, showToast }) {
         const dbRes = await fetch(`${ANIMAL_API}/record/add`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({
             petSbtId: Number(petSbtId),
             ownerAddress: reqForm.ownerAddress?.trim() || undefined,
@@ -304,13 +315,21 @@ export default function HospitalPage({ account, showToast }) {
               <div style={{ padding:"8px 14px", background:"var(--surface)", border:"1px solid var(--border)", borderRadius:6, fontSize:11, fontFamily:"'Space Mono',monospace", color:"var(--muted)" }}>
                 총 {passportInfo.totalRecords}건의 기록
               </div>
-              {permission && (
-                <div style={{ padding:"8px 14px", background: permission.allowed ? "rgba(124,58,237,0.1)" : "rgba(239,68,68,0.1)", border:`1px solid ${permission.allowed ? "rgba(124,58,237,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius:6, fontSize:11, fontFamily:"'Space Mono',monospace", color: permission.allowed ? "var(--accent2)" : "#ef4444" }}>
-                  {permission.allowed
-                    ? `권한 있음 (남은 횟수: ${permission.remainingWrites === 4294967295 ? '무제한' : permission.remainingWrites})`
-                    : '권한 없음 - 주인에게 요청하세요'}
-                </div>
-              )}
+              {permission && (() => {
+                const now = Math.floor(Date.now() / 1000);
+                const expired = permission.validUntil !== 0 && permission.validUntil < now;
+                const active = permission.allowed && !expired && permission.remainingWrites > 0;
+                let label;
+                if (!permission.allowed) label = '권한 없음 - 주인에게 요청하세요';
+                else if (expired) label = '권한 만료됨 - 재요청이 필요합니다';
+                else if (permission.remainingWrites === 0) label = '쓰기 횟수 소진 - 재요청이 필요합니다';
+                else label = `권한 있음 (남은 횟수: ${permission.remainingWrites === 4294967295 ? '무제한' : permission.remainingWrites}${permission.validUntil !== 0 ? ` · 만료: ${new Date(permission.validUntil * 1000).toLocaleDateString('ko-KR')}` : ''})`;
+                return (
+                  <div style={{ padding:"8px 14px", background: active ? "rgba(124,58,237,0.1)" : "rgba(239,68,68,0.1)", border:`1px solid ${active ? "rgba(124,58,237,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius:6, fontSize:11, fontFamily:"'Space Mono',monospace", color: active ? "var(--accent2)" : "#ef4444" }}>
+                    {label}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -332,8 +351,14 @@ export default function HospitalPage({ account, showToast }) {
                   {input}
                 </div>
               ))}
-              <button className="btn-full" onClick={handleAddRecord} disabled={adding || !permission?.allowed}>
-                {adding ? "기록 중..." : permission?.allowed ? "📋 진료 기록 추가하기" : "🔒 권한 없음"}
+              <button className="btn-full" onClick={handleAddRecord} disabled={adding || !(permission?.allowed && (permission.validUntil === 0 || permission.validUntil > Math.floor(Date.now()/1000)) && permission.remainingWrites > 0)}>
+                {adding ? "기록 중..." : (() => {
+                  const now = Math.floor(Date.now()/1000);
+                  if (!permission?.allowed) return "🔒 권한 없음";
+                  if (permission.validUntil !== 0 && permission.validUntil < now) return "🔒 권한 만료";
+                  if (permission.remainingWrites === 0) return "🔒 횟수 소진";
+                  return "📋 진료 기록 추가하기";
+                })()}
               </button>
             </div>
 

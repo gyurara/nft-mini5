@@ -70,7 +70,7 @@ function MedicalCalendar({ records, selectedDate, onSelectDate }) {
 }
 
 /* ───────────── MedicalSection ───────────── */
-function MedicalSection({ isHospital, showToast, calendarOpen, setCalendarOpen, grantOpen, setGrantOpen, medicalSbtId, medicalPassport, addNftCoupon, petId }) {
+function MedicalSection({ isHospital, showToast, calendarOpen, setCalendarOpen, grantOpen, setGrantOpen, medicalSbtId, medicalPassport, addNftCoupon, petId, account, sbtTokenId }) {
   const [records, setRecords] = useState([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const updatesChannelRef = useRef(null);
@@ -241,19 +241,18 @@ const handleGrant = async () => {
     // 병원이 requestPermission을 통해 등록한 대기 중인 요청을 승인
     const tx = await medicalPassport.approvePermission(medicalSbtId, grantForm.hospital);
     await tx.wait();
-    // DB에도 병원 연결 기록
+    // DB에도 병원 연결 기록 (approvalId는 병원측 저장 형식과 일치: vetAddress-sbtTokenId)
     try {
       const NODE_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+      const vetAddr = grantForm.hospital.toLowerCase();
       await fetch(`${NODE_API}/vet/respond-approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          approvalId: `grant-${grantForm.hospital}-${Date.now()}`,
-          ownerAddress: medicalPassport?.runner?.address || '',
+          approvalId: `${vetAddr}-${sbtTokenId}`,
+          ownerAddress: account || '',
           approved: true,
-          vetAddress: grantForm.hospital,
-          petSbtId: petId,
         }),
       });
     } catch (_) {}
@@ -948,7 +947,7 @@ export function MyPage({ state, issueSbt, issueNft, showToast, setPage, connectW
                 </div>
               )}
 
-              <MedicalSection isHospital={false} showToast={showToast} calendarOpen={medicalCalendarOpen} setCalendarOpen={setMedicalCalendarOpen} grantOpen={medicalGrantOpen} setGrantOpen={setMedicalGrantOpen} medicalSbtId={medicalSbtId} medicalPassport={medicalPassportContract} addNftCoupon={addNftCouponFromMedical} petId={profile?.pet?.id} />
+              <MedicalSection isHospital={false} showToast={showToast} calendarOpen={medicalCalendarOpen} setCalendarOpen={setMedicalCalendarOpen} grantOpen={medicalGrantOpen} setGrantOpen={setMedicalGrantOpen} medicalSbtId={medicalSbtId} medicalPassport={medicalPassportContract} addNftCoupon={addNftCouponFromMedical} petId={profile?.pet?.id} account={state.account} sbtTokenId={profile?.sbt?.tokenId} />
 
               <div className="holder-section" style={{ marginTop:16 }}>
                 <div className="holder-title">홀더 혜택</div>

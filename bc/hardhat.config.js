@@ -8,8 +8,13 @@ module.exports = {
   },
   networks: {
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
+      url: process.env.SEPOLIA_RPC_URL || "https://sepolia.drpc.org",
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+      timeout: 120000,
+      httpHeaders: {},
     },
+  },
+  mocha: {
+    timeout: 120000,
   },
 };
