@@ -334,7 +334,7 @@ export function createGetGoodsPreviewService({ sessionGateway }) {
 /* ───────────── 블록체인 게이트웨이 ───────────── */
 const PET_SBT_ADDRESS = import.meta.env.VITE_PET_SBT_ADDRESS || '0xD04Ef2b3cc930e40da14F5a192313De5618e3Df4';
 const MEMORY_NFT_ADDRESS = import.meta.env.VITE_MEMORY_NFT_ADDRESS || '0x826Ac0088d0A43E1B227e283FdF471b5c4F6C598';
-const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0xBE5A3d79a49a2E9763148cdBff11D971f7f96912';
+const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0x1888440B67f602847774E75566F5F398D42129B7';
 
 const SEPOLIA_CHAIN_ID_HEX = import.meta.env.VITE_CHAIN_ID || '0xaa36a7';
 
@@ -377,6 +377,7 @@ export async function createRealGateways() {
   'function getPermission(uint256 medicalSbtId, address hospital) view returns (tuple(bool allowed, uint64 validUntil, uint32 remainingWrites))',
   'function approvePermission(uint256 medicalSbtId, address hospital)',
   'function rejectPermission(uint256 medicalSbtId, address hospital)',
+  'function getPendingPermissionRequest(uint256 medicalSbtId, address hospital) view returns (tuple(bool exists, uint64 validUntil, uint32 remainingWrites, uint64 requestedAt, uint256 paidAmount))',
 ], signer);
 
   const memoryNFT = new ethers.Contract(MEMORY_NFT_ADDRESS, [
@@ -512,10 +513,17 @@ export function usePetServiceApp() {
   // --- account 변경 시 DB에서 펫 동기화 ---
   useEffect(() => {
     if (!account) return;
-    api.getPetsFromDB(account).then(pets => {
+    // Node.js → Spring Boot 싱크 먼저 실행 후 펫 목록 조회
+    api.syncToSpringBoot(account).then(() => api.getPetsFromDB(account)).then(pets => {
       if (!Array.isArray(pets) || pets.length === 0) return;
+      // 기존 프로필 전체 (이름 기반 fallback 매칭을 위해)
+      const allExisting = repositoryRef.current.getAllProfilesByAccount(account.toLowerCase());
       const repo = new InMemoryPetProfileRepository();
       pets.forEach(pet => {
+        // Spring Boot DB에 sbt/nft 데이터가 없으면 기존 in-memory 데이터 보존
+        // ID가 새로고침 후 바뀔 수 있으므로 이름으로도 fallback 매칭
+        const existing = repositoryRef.current.getProfileByPetId(account.toLowerCase(), String(pet.id))
+          || allExisting.find(p => p.pet.name === pet.name);
         repo.savePetProfile({
           account: account.toLowerCase(),
           pet: {
@@ -531,12 +539,41 @@ export function usePetServiceApp() {
             createdAt: pet.createdAt || new Date().toISOString(),
             updatedAt: pet.createdAt || new Date().toISOString(),
           },
-          sbt: pet.sbtTokenId != null ? { tokenId: pet.sbtTokenId, transactionHash: pet.txHash || null, mintedAt: null } : null,
-          nfts: pet.tokenId != null ? [{ tokenId: pet.tokenId, transactionHash: pet.txHash || null }] : [],
+          sbt: pet.sbtTokenId != null
+            ? { tokenId: pet.sbtTokenId, transactionHash: pet.txHash || null, mintedAt: null }
+            : existing?.sbt || null,
+          nfts: pet.tokenId != null
+            ? [{ tokenId: pet.tokenId, transactionHash: pet.txHash || null }]
+            : existing?.nfts || [],
         });
       });
       repositoryRef.current = repo;
       refreshProfiles(account);
+
+      // tokenStates와 activePetId를 Spring Boot ID 기준으로 업데이트
+      // (새로고침 후 내부 ID → Spring Boot ID로 바뀌어도 hasSbt/hasNft 유지)
+      const newPetIds = pets.map(p => String(p.id));
+      setActivePetId(currentId => newPetIds.includes(currentId) ? currentId : (newPetIds[0] || currentId));
+      setTokenStates(currentTs => {
+        const updated = { ...currentTs };
+        pets.forEach(pet => {
+          const springId = String(pet.id);
+          if (!updated[springId]) {
+            // 기존 tokenState를 이름 매칭으로 찾아 복사, 없으면 DB 정보 기준으로 생성
+            const matchedExisting = allExisting.find(p => p.pet.name === pet.name);
+            const matchedTs = matchedExisting ? currentTs[matchedExisting.pet.id] : null;
+            updated[springId] = matchedTs || {
+              hasSbt: pet.sbtTokenId != null,
+              hasNft: pet.tokenId != null,
+            };
+          } else {
+            // 이미 있어도 DB에 sbtTokenId가 있으면 hasSbt를 true로 보정
+            if (pet.sbtTokenId != null) updated[springId] = { ...updated[springId], hasSbt: true };
+            if (pet.tokenId != null) updated[springId] = { ...updated[springId], hasNft: true };
+          }
+        });
+        return updated;
+      });
     }).catch(e => console.error('DB pet sync failed:', e));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account]);
@@ -708,18 +745,9 @@ export function usePetServiceApp() {
       if (issuance) await api.syncSbt({ account, ...issuance });
     } catch (e) { console.error('syncSbt failed:', e); }
 
-    // Spring Boot pets 테이블 동기화 (DB에서 로드된 펫인 경우 숫자 ID)
+    // Spring Boot pets 테이블 동기화 — Node.js DB 기준으로 account 매칭
     try {
-      const issuance = result.issuance?.sbt;
-      const numericId = targetId && /^\d+$/.test(String(targetId)) ? targetId : null;
-      if (issuance && numericId) {
-        const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
-        await fetch(`${ANIMAL_API}/pets/id/${numericId}/tokens`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sbtTokenId: issuance.tokenId, txHash: issuance.transactionHash }),
-        });
-      }
+      await api.syncToSpringBoot(account);
     } catch (e) { console.error('Spring Boot sbt sync failed:', e); }
 
     if (result.nftCouponsGranted) {
@@ -747,18 +775,9 @@ export function usePetServiceApp() {
       if (issuance) await api.syncNft({ account, ...issuance });
     } catch (e) { console.error('syncNft failed:', e); }
 
-    // Spring Boot pets 테이블 동기화
+    // Spring Boot pets 테이블 동기화 — Node.js DB 기준으로 account 매칭
     try {
-      const issuance = result.issuance?.nfts?.slice(-1)[0];
-      const numericId = targetId && /^\d+$/.test(String(targetId)) ? targetId : null;
-      if (issuance && numericId) {
-        const ANIMAL_API = import.meta.env.VITE_ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
-        await fetch(`${ANIMAL_API}/pets/id/${numericId}/tokens`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tokenId: issuance.tokenId, txHash: issuance.transactionHash }),
-        });
-      }
+      await api.syncToSpringBoot(account);
     } catch (e) { console.error('Spring Boot nft sync failed:', e); }
 
     setNftCouponsMap(prev => ({ ...prev, [targetId]: Math.max(0, (prev[targetId] || 0) - 1) }));

@@ -56,11 +56,12 @@ function Nav({ page, setPage, theme, toggleTheme, state, connectWallet, disconne
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
 /* ───────────── 병원 권한 요청 팝업 ───────────── */
-function VetApprovalPopup({ request, onRespond }) {
+function VetApprovalPopup({ request, onRespond, onDismiss }) {
   if (!request) return null;
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, padding:32, maxWidth:420, width:'90%' }}>
+      <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, padding:32, maxWidth:420, width:'90%', position:'relative' }}>
+        <button onClick={() => onDismiss(request)} style={{ position:'absolute', top:12, right:12, background:'none', border:'none', color:'var(--muted)', fontSize:16, cursor:'pointer' }}>✕</button>
         <div style={{ fontFamily:"'Space Mono',monospace", fontSize:11, letterSpacing:2, color:'var(--accent2)', marginBottom:12 }}>🏥 진료 권한 요청</div>
         <div style={{ fontSize:14, marginBottom:8 }}><b>{request.vetName}</b> 병원이 진료 기록 접근을 요청했습니다.</div>
         {request.message && (
@@ -146,6 +147,14 @@ export default function App() {
     return () => { es.close(); sseRef.current = null; };
   }, [state.account]);
 
+  const dismissVetRequest = async (request) => {
+    await fetch(`${API_BASE}/vet/dismiss-notification/${encodeURIComponent(request.id)}?ownerAddress=${state.account}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    }).catch(() => {});
+    setVetRequest(null);
+  };
+
   const handleVetRespond = async (request, approved) => {
     try {
       // 1. 스마트 컨트랙트 approvePermission / rejectPermission 호출
@@ -165,14 +174,24 @@ export default function App() {
       }
 
       // 2. 백엔드 상태 업데이트 (실제 tx 해시 전달)
-      await fetch(`${API_BASE}/vet/respond-approval`, {
+      const dbRes = await fetch(`${API_BASE}/vet/respond-approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ approvalId: request.id, ownerAddress: state.account, approved, txHash }),
       });
+      if (!dbRes.ok) {
+        const err = await dbRes.json().catch(() => ({}));
+        throw new Error(err.message || `DB 업데이트 실패 (${dbRes.status})`);
+      }
       showToast(approved ? '병원 권한을 승인했습니다.' : '병원 권한 요청을 거절했습니다.', approved ? 'success' : 'error');
     } catch (e) {
+      // 온체인에 pending request가 없으면 stale 알림이므로 DB에서 정리
+      if (e?.data === '0x51603585' || e?.message?.includes('PendingPermissionRequestNotFound')) {
+        await dismissVetRequest(request);
+        showToast('만료된 권한 요청입니다. 병원에 재요청을 안내해주세요.', 'error');
+        return;
+      }
       showToast(e.message || '응답 처리에 실패했습니다.', 'error');
     }
     setVetRequest(null);
@@ -225,7 +244,7 @@ export default function App() {
       />
       {pages[page] || pages.home}
       <Toast toast={toast} />
-      <VetApprovalPopup request={vetRequest} onRespond={handleVetRespond} />
+      <VetApprovalPopup request={vetRequest} onRespond={handleVetRespond} onDismiss={dismissVetRequest} />
     </>
   );
 }

@@ -71,4 +71,9 @@ export const api = {
     return fetch(`${ANIMAL_API_BASE}/pets/owner/${encodeURIComponent(address)}`)
       .then(r => r.json());
   },
+  syncToSpringBoot(address) {
+    return request(API_BASE, `/sync-to-spring/${encodeURIComponent(address)}`, {
+      method: 'POST',
+    }).catch(() => {});
+  },
 };

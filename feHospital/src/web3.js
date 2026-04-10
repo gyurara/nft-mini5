@@ -13,7 +13,7 @@ const CHAIN_CONFIG = {
 };
 
 const PET_SBT_ADDRESS = import.meta.env.VITE_PET_SBT_ADDRESS || '0xD04Ef2b3cc930e40da14F5a192313De5618e3Df4';
-const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0xBE5A3d79a49a2E9763148cdBff11D971f7f96912';
+const MEDICAL_PASSPORT_ADDRESS = import.meta.env.VITE_MEDICAL_PASSPORT_ADDRESS || '0x1888440B67f602847774E75566F5F398D42129B7';
 
 const PET_SBT_ABI = [
   'function getPetTokenIds(address owner) view returns (uint256[])',
@@ -35,6 +35,7 @@ const MEDICAL_PASSPORT_ABI = [
   'function getPermission(uint256 medicalSbtId, address hospital) view returns (tuple(bool allowed, uint64 validUntil, uint32 remainingWrites))',
   'function getPendingPermissionRequest(uint256 medicalSbtId, address hospital) view returns (tuple(bool exists, uint64 validUntil, uint32 remainingWrites, uint64 requestedAt, uint256 paidAmount))',
   'function requestPermission(uint256 medicalSbtId, uint64 validUntil, uint32 remainingWrites) payable',
+  'function cancelPermissionRequest(uint256 medicalSbtId)',
   'function permissionRequestFee() view returns (uint256)',
 ];
 

@@ -454,6 +454,58 @@ app.post('/api/issue-nft', requireLogin, async (req, res) => {
   }
 });
 
+// Node.js pet_profiles → Spring Boot pets 테이블 sbtTokenId/tokenId 싱크
+// 프론트 로드 시 자동 호출 (account 기준)
+app.post('/api/sync-to-spring/:account', async (req, res) => {
+  try {
+    const account = req.params.account.toLowerCase();
+    const ANIMAL_API = process.env.ANIMAL_API_BASE_URL || 'http://localhost:8080/api';
+
+    const repository = new MySqlPetProfileRepository(dbPool);
+    const profile = await repository.getPetProfileByAccount(account);
+    if (!profile || (!profile.sbt && (!profile.nfts || profile.nfts.length === 0))) {
+      return res.json({ ok: true, synced: false, reason: 'no sbt/nft data in node db' });
+    }
+
+    // Spring Boot에서 해당 계정의 펫 목록 조회
+    const sbResp = await fetch(`${ANIMAL_API}/pets/owner/${encodeURIComponent(account)}`);
+    if (!sbResp.ok) return res.status(502).json({ ok: false, reason: 'spring boot pets fetch failed' });
+    const sbPets = await sbResp.json();
+    if (!Array.isArray(sbPets) || sbPets.length === 0) {
+      return res.json({ ok: true, synced: false, reason: 'no pets in spring boot' });
+    }
+
+    // 매칭: Node.js pet 이름과 동일한 Spring Boot pet 찾기 (없으면 첫 번째 pet)
+    const nodePetName = profile.pet?.name;
+    const target = sbPets.find(p => p.name === nodePetName) || sbPets[0];
+
+    const patchBody = {};
+    if (profile.sbt?.tokenId != null) patchBody.sbtTokenId = profile.sbt.tokenId;
+    if (profile.nfts?.length > 0 && profile.nfts[profile.nfts.length - 1]?.tokenId != null) {
+      patchBody.tokenId = profile.nfts[profile.nfts.length - 1].tokenId;
+    }
+    if (profile.sbt?.transactionHash) patchBody.txHash = profile.sbt.transactionHash;
+
+    if (Object.keys(patchBody).length === 0) {
+      return res.json({ ok: true, synced: false, reason: 'nothing to patch' });
+    }
+
+    const patchResp = await fetch(`${ANIMAL_API}/pets/id/${target.id}/tokens`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchBody),
+    });
+
+    if (!patchResp.ok) {
+      return res.status(502).json({ ok: false, reason: `spring boot patch failed: ${patchResp.status}` });
+    }
+
+    res.json({ ok: true, synced: true, petId: target.id, patched: patchBody });
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 // 온체인 SBT 민팅 완료 후 DB 동기화
 // Body: { account, tokenId, transactionHash, tokenUri, metadata, mintedAt }
 app.post('/api/sync-sbt', requireLogin, async (req, res) => {
@@ -651,20 +703,22 @@ app.get('/api/vet/check-access/:ownerAddress/:vetAddress', requireLogin, async (
 // Body: { petSbtId, ownerAddress, message? }
 app.post('/api/vet/request-approval', requireOrg, async (req, res) => {
   try {
-    const { petSbtId, ownerAddress, message } = req.body || {};
+    const { petSbtId, ownerAddress, message, vetAddress: bodyVetAddress } = req.body || {};
 
     if (!petSbtId || !ownerAddress) {
       return res.status(400).json({ code: 'INVALID_PARAMS', message: 'petSbtId, ownerAddress는 필수입니다.' });
     }
 
     // 세션에서 병원 정보 가져오기
-    const vetAddress = req.session.user.walletAddress;
+    const sessionVetAddress = req.session.user.walletAddress;
     const vetName = req.session.user.name;
 
-    if (!vetAddress) {
+    if (!sessionVetAddress) {
       return res.status(400).json({ code: 'WALLET_NOT_LINKED', message: '지갑 주소를 먼저 연결해주세요.' });
     }
 
+    // 실제 컨트랙트 서명자 주소(bodyVetAddress) 우선 사용, 없으면 세션 주소 사용
+    const vetAddress = bodyVetAddress || sessionVetAddress;
     const normalizedOwner = ownerAddress.toLowerCase();
     const normalizedVet = vetAddress.toLowerCase();
 
@@ -709,7 +763,7 @@ app.post('/api/vet/request-approval', requireOrg, async (req, res) => {
 
 // 보호자 → 병원 승인/거절 응답
 // Body: { approvalId, ownerAddress, approved }
-app.post('/api/vet/respond-approval', requireLogin, async (req, res) => {
+app.post('/api/vet/respond-approval', async (req, res) => {
   try {
     const { approvalId, ownerAddress, approved, txHash } = req.body || {};
 
@@ -788,6 +842,24 @@ app.post('/api/vet/respond-approval', requireLogin, async (req, res) => {
     } finally {
       conn.release();
     }
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+// 보호자 → 알림 무시 (stale DB 레코드 정리)
+app.delete('/api/vet/dismiss-notification/:approvalId', async (req, res) => {
+  try {
+    const approvalId = req.params.approvalId;
+    const ownerAddress = (req.query.ownerAddress || '').toLowerCase();
+    if (!approvalId || !ownerAddress) {
+      return res.status(400).json({ code: 'INVALID_PARAMS', message: 'approvalId, ownerAddress는 필수입니다.' });
+    }
+    await dbPool.execute(
+      'DELETE FROM vet_connection_requests WHERE id = ? AND owner_address = ?',
+      [approvalId, ownerAddress]
+    );
+    res.json({ ok: true });
   } catch (error) {
     handleError(error, res);
   }

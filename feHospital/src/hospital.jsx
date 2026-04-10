@@ -3,12 +3,12 @@ import { getContracts } from './web3.js';
 
 const NODE_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
-async function sendApprovalRequest({ petSbtId, ownerAddress, message }) {
+async function sendApprovalRequest({ petSbtId, ownerAddress, message, vetAddress }) {
   const res = await fetch(`${NODE_API}/vet/request-approval`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ petSbtId, ownerAddress, message }),
+    body: JSON.stringify({ petSbtId, ownerAddress, message, vetAddress }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || '요청 전송에 실패했습니다.');
@@ -57,14 +57,23 @@ export default function HospitalPage({ account, showToast }) {
     setReqLoading(true);
     try {
       // 1. 컨트랙트 연결 및 의료 여권 ID 조회
-      const { medicalPassport } = await getContracts();
+      const { medicalPassport, signer } = await getContracts();
+      const contractVetAddress = await signer.getAddress(); // 실제 트랜잭션 서명자 주소
       const mSbtId = await medicalPassport.medicalSbtByOwnerSbt(Number(reqForm.petSbtId));
       if (Number(mSbtId) === 0) throw new Error('해당 펫의 의료 여권이 존재하지 않습니다. 보호자에게 먼저 의료 여권을 발급하도록 안내해주세요.');
 
-      // 2. 수수료 조회
+      // 2. 이미 대기 중인 요청이 있으면 먼저 취소
+      const pending = await medicalPassport.getPendingPermissionRequest(Number(mSbtId), contractVetAddress);
+      if (pending.exists) {
+        showToast('기존 대기 요청을 취소하는 중...');
+        const cancelTx = await medicalPassport.cancelPermissionRequest(Number(mSbtId));
+        await cancelTx.wait();
+      }
+
+      // 3. 수수료 조회
       const fee = await medicalPassport.permissionRequestFee();
 
-      // 3. 온체인 requestPermission 호출 (30일 유효, 10회 쓰기 허용)
+      // 4. 온체인 requestPermission 호출 (30일 유효, 10회 쓰기 허용)
       const validUntil = Math.floor(Date.now() / 1000) + 30 * 24 * 3600;
       const remainingWrites = 10;
       showToast('MetaMask에서 트랜잭션을 승인해주세요...');
@@ -72,8 +81,8 @@ export default function HospitalPage({ account, showToast }) {
       showToast('트랜잭션 처리 중...');
       await tx.wait();
 
-      // 4. 보호자에게 DB 알림 전송 (SSE)
-      await sendApprovalRequest({ petSbtId: reqForm.petSbtId, ownerAddress: reqForm.ownerAddress, message: reqForm.message });
+      // 5. 보호자에게 DB 알림 전송 (SSE) - 실제 서명자 주소 전달
+      await sendApprovalRequest({ petSbtId: reqForm.petSbtId, ownerAddress: reqForm.ownerAddress, message: reqForm.message, vetAddress: contractVetAddress });
       setReqSent(true);
       showToast('권한 요청이 전송되었습니다.');
     } catch (e) { showToast(e.message, 'error'); }
